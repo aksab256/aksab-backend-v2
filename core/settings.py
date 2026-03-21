@@ -1,16 +1,16 @@
 import os
 from pathlib import Path
-import dj_database_url  # 🛠️ مكتبة ربط قاعدة البيانات بالسحابة
+import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# مفتاح الأمان - يفضل قراءته من البيئة في الإنتاج
+# مفتاح الأمان
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-your-secret-key-here')
 
 # جعل DEBUG = False في الإنتاج أوتوماتيكياً
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
-# 🌐 إعدادات الروابط المسموحة (تأخذ القيمة من Koyeb أو تسمح للكل في حالة DEBUG)
+# إعدادات الروابط المسموحة
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*').split(',')
 
 INSTALLED_APPS = [
@@ -20,12 +20,10 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    
     # المكتبات الأساسية لـ API أكسب
     'rest_framework',
     'rest_framework.authtoken',
     'corsheaders',
-    
     # تطبيق اللوجستيات
     'logistics',
 ]
@@ -33,7 +31,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware', # 📦 ضروري لتشغيل ملفات الـ CSS والـ JS على Koyeb
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -62,40 +60,47 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'core.wsgi.application'
 
-# 🗄️ الربط الذكي بقاعدة البيانات (Postgres في Koyeb و SQLite في جهازك)
+# 🗄️ الربط الحقيقي بقاعدة بيانات السيرفر (Koyeb)
+# تم استبدال الرابط بالرابط الجديد الذي زودتني به
+DATABASE_URL = os.getenv(
+    'DATABASE_URL', 
+    'postgres://koyeb-adm:npg_bIET6cGBLhv5@ep-old-band-ag4h5n6x.c-2.eu-central-1.pg.koyeb.app/koyebdb'
+)
+
 DATABASES = {
     'default': dj_database_url.config(
-        default=f'sqlite:///{BASE_DIR / "db.sqlite3"}',
+        default=DATABASE_URL,
         conn_max_age=600
     )
 }
 
 AUTH_PASSWORD_VALIDATORS = []
 
+# إعدادات اللغة والوقت (مصر)
 LANGUAGE_CODE = 'ar'
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Africa/Cairo'
 USE_I18N = True
 USE_L10N = True
 USE_TZ = True
 
+# الملفات الثابتة
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-# تمكين WhiteNoise لخدمة الملفات الثابتة
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# --- إعدادات الأمان (CORS & CSRF) ---
-CORS_ALLOW_ALL_ORIGINS = True 
+# إعدادات الأمان (CORS & CSRF)
+CORS_ALLOW_ALL_ORIGINS = True
 CSRF_TRUSTED_ORIGINS = [
     'https://aksab.pythonanywhere.com',
-    'https://*.koyeb.app' # السماح لكل روابط Koyeb
+    'https://*.koyeb.app'
 ]
 CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_HTTPONLY = False 
+CSRF_COOKIE_HTTPONLY = False
 
-# --- إعدادات REST Framework ---
+# إعدادات REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.TokenAuthentication',
@@ -105,3 +110,4 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.AllowAny',
     ],
 }
+
