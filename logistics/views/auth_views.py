@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth.models import User
 from rest_framework.authtoken.models import Token
+from django.http import JsonResponse
 from ..models import SalesRepresentative
 
 class LoginView(APIView):
@@ -12,21 +13,21 @@ class LoginView(APIView):
         fcm_token = request.data.get('fcm_token')
 
         try:
-            # 1. البحث في سجلات مناديب المبيعات (تأمين العهدة)
+            # 1. البحث في سجلات مناديب المبيعات (إدارة العهدة)
             rep = SalesRepresentative.objects.get(phone=phone_input)
             user = rep.user
-            
+
             if user.check_password(password_input):
                 if not user.is_active:
                     return Response({
-                        "status": "error", 
+                        "status": "error",
                         "message": "حساب المندوب معطل، يرجى مراجعة الإدارة"
                     }, status=status.HTTP_403_FORBIDDEN)
-                
-                # توليد أو جلب التوكن الخاص بالمندوب لربطه بالموبايل
+
+                # توليد التوكن
                 token, _ = Token.objects.get_or_create(user=user)
 
-                # تحديث توكن الإشعارات لإدارة العهدة لحظياً
+                # تحديث توكن الإشعارات لحظياً
                 if fcm_token:
                     rep.fcm_token = fcm_token
                     rep.save()
@@ -40,17 +41,15 @@ class LoginView(APIView):
                     "data": {
                         "rep_code": rep.rep_code,
                         "phone": rep.phone,
-                        "insurance_points": str(rep.insurance_points), # مصطلح تأمين العهدة
+                        "insurance_points": str(rep.insurance_points), # نقاط التأمين
                     }
                 })
-            
         except SalesRepresentative.DoesNotExist:
-            # 2. محاولة الدخول كإدارة (SuperAdmin) بناءً على اسم المستخدم
+            # 2. دخول الإدارة (SuperAdmin)
             try:
                 user = User.objects.get(username=phone_input)
                 if user.check_password(password_input):
                     token, _ = Token.objects.get_or_create(user=user)
-                    
                     return Response({
                         "status": "success",
                         "token": token.key,
@@ -63,14 +62,15 @@ class LoginView(APIView):
                 pass
 
         return Response({
-            "status": "error", 
+            "status": "error",
             "message": "بيانات الدخول غير صحيحة أو غير مسجلة بالمنظومة"
         }, status=status.HTTP_401_UNAUTHORIZED)
-from django.http import JsonResponse
-from django.contrib.auth.models import User
 
+# --- دالة الطوارئ لإنشاء الأدمن ---
 def create_admin(request):
     if not User.objects.filter(username="admin").exists():
-        User.objects.create_superuser("admin", "admin@aksab.com", "123456")
-        return JsonResponse({"status": "admin created"})
+        # الباسورد هنا هو اللي هتستخدمه للدخول أول مرة
+        User.objects.create_superuser("admin", "admin@aksab.com", "aksab2026")
+        return JsonResponse({"status": "admin created", "user": "admin", "pass": "aksab2026"})
     return JsonResponse({"status": "already exists"})
+
