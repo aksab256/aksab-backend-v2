@@ -1,5 +1,5 @@
 from django.contrib import admin
-from ..models.product import Product
+from ..models.products import Product
 from ..models.mainInventory import Warehouse, InventoryItem
 from ..models.transactions import StockTransfer, TransferItem
 
