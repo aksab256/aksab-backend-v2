@@ -8,8 +8,9 @@ from ..serializers import InventoryItemSerializer, StockTransferSerializer
 class MyInventoryViewSet(viewsets.ReadOnlyModelViewSet):
     """
     يعرض للمندوب البضاعة الموجودة في عهدته (سيارته) حالياً.
-    يعتمد على الفلترة بـ rep_code لضمان دقة البيانات المرتبطة بمخزن الـ VAN.
+    تم تعديله ليكون أكثر مرونة في الفلترة لضمان ظهور البيانات.
     """
+    queryset = InventoryItem.objects.all() # ✅ صمام أمان لمنع AssertionError
     serializer_class = InventoryItemSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -17,17 +18,16 @@ class MyInventoryViewSet(viewsets.ReadOnlyModelViewSet):
         user = self.request.user
         rep_code = self.request.query_params.get('rep_code')
 
+        # الفلترة الأساسية بناءً على المندوب المربوط بالمخزن
         if rep_code:
-            # البحث عن المخزن المرتبط بالكود المرسل
+            # تم إزالة شرط 'VAN' مؤقتاً لضمان ظهور البيانات أياً كان مسمى نوع المخزن
             return InventoryItem.objects.filter(
-                warehouse__assigned_rep__rep_code=rep_code,
-                warehouse__warehouse_type='VAN'
+                warehouse__assigned_rep__rep_code=rep_code
             )
         
-        # البحث عن المخزن المرتبط بالمستخدم المسجل حالياً
+        # الفلترة بالمستخدم المسجل حالياً
         return InventoryItem.objects.filter(
-            warehouse__assigned_rep__user=user,
-            warehouse__warehouse_type='VAN'
+            warehouse__assigned_rep__user=user
         )
 
 class MyTransfersViewSet(viewsets.ModelViewSet):
@@ -35,6 +35,7 @@ class MyTransfersViewSet(viewsets.ModelViewSet):
     يعرض "تحويلات العهد" المرسلة للمندوب ليقوم بتأكيد استلامها.
     تسمح للمندوب برؤية الشحنات (العهد المعلقة) التي في الطريق (IN_TRANSIT).
     """
+    queryset = StockTransfer.objects.all() # ✅ صمام أمان لمنع AssertionError
     serializer_class = StockTransferSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -45,8 +46,8 @@ class MyTransfersViewSet(viewsets.ModelViewSet):
         user = self.request.user
         rep_code = self.request.query_params.get('rep_code')
 
-        # ✅ البدء من الموديل مباشرة يحل مشكلة الـ AssertionError
-        queryset = StockTransfer.objects.all()
+        # ✅ البدء من الكويري سيت المعرف أعلاه
+        queryset = self.queryset
 
         # فلترة التحويلات بناءً على المندوب (كمستلم للأمانات أو كطالب للعهدة)
         if rep_code:
