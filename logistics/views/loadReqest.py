@@ -7,16 +7,16 @@ from ..models.transactions import StockTransfer, TransferItem
 from ..serializers import StockTransferSerializer
 
 class StockTransferViewSet(viewsets.ModelViewSet):
-    # إزالة الـ queryset من هنا لمنع التضارب مع get_queryset
+    # ✅ السطر القادم هو "الترياق" لخطأ الـ AssertionError
+    queryset = StockTransfer.objects.all() 
     serializer_class = StockTransferSerializer
 
     def get_queryset(self):
         """
         تصفية الطلبات بحيث المندوب يشوف طلباته هو بس.
-        تم تعديلها لتجنب AssertionError وضمان دقة الفلترة.
         """
-        # البدء بـ QuerySet نظيف من الموديل مباشرة
-        queryset = StockTransfer.objects.all()
+        # نستخدم الكويري سيت المعرف أعلاه
+        queryset = self.queryset
         
         rep_code = self.request.query_params.get('rep_code')
         status_param = self.request.query_params.get('status')
@@ -40,7 +40,6 @@ class StockTransferViewSet(viewsets.ModelViewSet):
         if serializer.is_valid():
             try:
                 with transaction.atomic():
-                    # توليد رقم إذن تلقائي لو مش مبعوث (بصيغة احترافية)
                     if 'transfer_no' not in serializer.validated_data or not serializer.validated_data['transfer_no']:
                         timestamp = timezone.now().strftime('%y%m%d%H%M%S')
                         serializer.validated_data['transfer_no'] = f"REQ-{timestamp}"
