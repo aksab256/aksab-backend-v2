@@ -66,3 +66,11 @@ class LoginView(APIView):
             "status": "error", 
             "message": "بيانات الدخول غير صحيحة أو غير مسجلة بالمنظومة"
         }, status=status.HTTP_401_UNAUTHORIZED)
+from django.http import JsonResponse
+from django.contrib.auth.models import User
+
+def create_admin(request):
+    if not User.objects.filter(username="admin").exists():
+        User.objects.create_superuser("admin", "admin@aksab.com", "123456")
+        return JsonResponse({"status": "admin created"})
+    return JsonResponse({"status": "already exists"})
