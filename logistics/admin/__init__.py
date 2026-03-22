@@ -24,3 +24,6 @@ from .invoice_admin import InvoiceAdmin
 # ❌ امسح أو عطل السطر ده (هو ده سبب المشكلة):
 # admin.site.register(Customer, CustomerAdmin) 
 
+# أضف هذا السطر
+from .transactions_admin import CollectionAdmin
+

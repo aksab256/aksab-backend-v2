@@ -8,3 +8,6 @@ from .transactions import StockTransfer
 from .customers import Customer 
 from .Invoice import Invoice
 from .InvoiceItem import InvoiceItem
+# أضف هذا السطر مع بقية الـ imports
+from .payments import Collection
+
