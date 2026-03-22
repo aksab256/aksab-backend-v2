@@ -20,7 +20,7 @@ except admin.sites.NotRegistered:
 admin.site.register(User, CustomUserAdmin)
 admin.site.register(SalesRepresentative)
 admin.site.register(SalesManager)
-
+from .invoice_admin import InvoiceAdmin
 # ❌ امسح أو عطل السطر ده (هو ده سبب المشكلة):
 # admin.site.register(Customer, CustomerAdmin) 
 
