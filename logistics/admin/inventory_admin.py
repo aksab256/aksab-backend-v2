@@ -1,12 +1,42 @@
 from django.contrib import admin
-from ..models.products import Product
+from ..models.products import Product, Category
 from ..models.mainInventory import Warehouse, InventoryItem
 from ..models.transactions import StockTransfer, TransferItem
 
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ('name',)
+    search_fields = ('name',)
+
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('name', 'sku', 'unit', 'selling_price')
-    search_fields = ('name', 'sku')
+    # عرض البيانات المهمة في القائمة الرئيسية
+    list_display = ('name', 'sku', 'category', 'base_unit', 'selling_price', 'is_active')
+    list_filter = ('category', 'is_active', 'base_unit')
+    search_fields = ('name', 'sku', 'barcode')
+    
+    # تقسيم الصفحة لمجموعات (Fieldsets) عشان شكلها يبقى احترافي وسهل في الإدخال
+    fieldsets = (
+        ('التعريف الأساسي', {
+            'fields': ('category', 'name', 'sku', 'barcode', 'is_active', 'image')
+        }),
+        ('نظام الوحدات المتداخلة', {
+            'description': "حدد الوحدات من الأصغر للأكبر ومعامل التحويل بينهما",
+            'fields': (
+                ('base_unit', 'sub_unit', 'main_unit'),
+                ('conversion_factor_sub', 'conversion_factor_main')
+            )
+        }),
+        ('الشحن والخدمات اللوجستية (الأبعاد والوزن)', {
+            'fields': (('weight', 'length'), ('width', 'height'))
+        }),
+        ('المقاس واللون (للملابس والأصناف المتنوعة)', {
+            'fields': (('size', 'color'),)
+        }),
+        ('التسعير الأساسي', {
+            'fields': (('base_price', 'selling_price'),)
+        }),
+    )
 
 class TransferItemInline(admin.TabularInline):
     model = TransferItem
@@ -20,10 +50,11 @@ class WarehouseAdmin(admin.ModelAdmin):
 @admin.register(InventoryItem)
 class InventoryItemAdmin(admin.ModelAdmin):
     list_display = ('product', 'warehouse', 'stock_quantity')
+    list_filter = ('warehouse',)
+    search_fields = ('product__name', 'product__sku')
 
 @admin.register(StockTransfer)
 class StockTransferAdmin(admin.ModelAdmin):
-    # تم تصحيح list_display هنا (حذفنا product و quantity لأنهم في الـ Inline)
     list_display = ('transfer_no', 'sender_warehouse', 'status', 'created_at')
     list_filter = ('status', 'sender_warehouse')
     inlines = [TransferItemInline]

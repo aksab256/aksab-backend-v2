@@ -1,29 +1,57 @@
 from django.db import models
 
-class Product(models.Model):
-    UNIT_CHOICES = [
-        ('PCS', 'قطعة'),
-        ('BOX', 'كرتونة'),
-        ('KG', 'كيلو'),
-    ]
+class Category(models.Model):
+    name = models.CharField(max_length=100, verbose_name="اسم القسم")
+    
+    class Meta:
+        verbose_name = "قسم"
+        verbose_name_plural = "الأقسام"
+        
+    def __str__(self): return self.name
 
+class Product(models.Model):
+    # --- التعريف الأساسي ---
+    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="القسم")
     name = models.CharField(max_length=255, verbose_name="اسم المنتج")
     sku = models.CharField(max_length=50, unique=True, verbose_name="كود الصنف (SKU)")
     barcode = models.CharField(max_length=100, blank=True, null=True, verbose_name="باركود")
-    unit = models.CharField(max_length=10, choices=UNIT_CHOICES, default='PCS', verbose_name="وحدة القياس")
-    
-    # الأسعار (لوجستياً)
-    base_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="سعر التكلفة")
-    selling_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="سعر البيع للجمهور")
-    
     image = models.ImageField(upload_to='products/', null=True, blank=True, verbose_name="صورة المنتج")
+
+    # --- نظام الوحدات المتداخلة (Packaging) ---
+    base_unit = models.CharField(max_length=20, default='قطعة', verbose_name="الوحدة الصغرى (أصغر شيء)")
+    sub_unit = models.CharField(max_length=20, blank=True, null=True, verbose_name="الوحدة المتوسطة (اختياري - مثلاً دستة)")
+    main_unit = models.CharField(max_length=20, default='كرتونة', verbose_name="الوحدة الكبرى")
+    
+    conversion_factor_sub = models.PositiveIntegerField(default=1, verbose_name="كم قطعة في الوحدة المتوسطة؟")
+    conversion_factor_main = models.PositiveIntegerField(default=1, verbose_name="كم قطعة في الكرتونة؟")
+
+    # --- المواصفات اللوجستية (للشحن وحساب الأحمال) ---
+    weight = models.DecimalField(max_digits=8, decimal_places=3, default=0, verbose_name="الوزن الإجمالي للكرتونة (كجم)")
+    length = models.DecimalField(max_digits=8, decimal_places=2, default=0, verbose_name="طول الكرتونة (سم)")
+    width = models.DecimalField(max_digits=8, decimal_places=2, default=0, verbose_name="عرض الكرتونة (سم)")
+    height = models.DecimalField(max_digits=8, decimal_places=2, default=0, verbose_name="ارتفاع الكرتونة (سم)")
+
+    # --- تنوع الأصناف (Variants) ---
+    size = models.CharField(max_length=20, blank=True, null=True, verbose_name="المقاس (مثلاً L, XL أو 42)")
+    color = models.CharField(max_length=30, blank=True, null=True, verbose_name="اللون")
+
+    # --- التسعير ---
+    base_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="سعر التكلفة (للقطعة)")
+    selling_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="سعر بيع الجمهور (للقطعة)")
+    
     is_active = models.BooleanField(default=True, verbose_name="متاح للبيع")
     created_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def volume_m3(self):
+        """حساب حجم الكرتونة بالمتر المكعب لتوزيع حمولة السيارات"""
+        return (self.length * self.width * self.height) / 1000000
 
     class Meta:
         verbose_name = "منتج"
         verbose_name_plural = "المنتجات"
 
     def __str__(self):
-        return f"{self.name} ({self.sku})"
+        variant_info = f" - {self.size}" if self.size else ""
+        return f"{self.name}{variant_info} ({self.sku})"
 
