@@ -10,12 +10,10 @@ class CategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    # عرض البيانات المهمة في القائمة الرئيسية
     list_display = ('name', 'sku', 'category', 'base_unit', 'selling_price', 'is_active')
     list_filter = ('category', 'is_active', 'base_unit')
     search_fields = ('name', 'sku', 'barcode')
     
-    # تقسيم الصفحة لمجموعات (Fieldsets) عشان شكلها يبقى احترافي وسهل في الإدخال
     fieldsets = (
         ('التعريف الأساسي', {
             'fields': ('category', 'name', 'sku', 'barcode', 'is_active', 'image')
@@ -37,6 +35,13 @@ class ProductAdmin(admin.ModelAdmin):
             'fields': (('base_price', 'selling_price'),)
         }),
     )
+
+    # الربط السحري للمكتبة والسكريبت
+    class Media:
+        js = (
+            'https://unpkg.com/html5-qrcode',  # مكتبة الـ Scanner
+            'js/admin_barcode_scanner.js',     # السكريبت بتاعك
+        )
 
 class TransferItemInline(admin.TabularInline):
     model = TransferItem
