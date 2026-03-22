@@ -1,7 +1,12 @@
 from .auth_views import LoginView
-from .auth_views import LoginView
 from .work_day_views import WorkDayAPIView
 
-# كده أي ملف بره مجلد views يقدر يستدعيهم مباشرة
-from .stockView import MyInventoryViewSet, MyTransfersViewSet
-from .loadReqest import StockTransferViewSet 
+# الفيوهات الخاصة بالمخازن والمنتجات
+from .stockView import MyInventoryViewSet, MyTransfersViewSet, ProductViewSet
+
+# الفيوهات الخاصة بطلبات التحميل
+from .loadReqest import StockTransferViewSet
+
+# 🆕 إضافة فيو العملاء الجديد
+from .customer_views import CustomerViewSet
+

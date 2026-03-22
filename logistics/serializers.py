@@ -3,6 +3,7 @@ from django.db import transaction
 from .models.mainInventory import InventoryItem
 from .models.transactions import StockTransfer, TransferItem
 from .models.products import Product
+from .models.customers import Customer # 🆕 استيراد موديل العملاء الجديد
 
 # 1. سيريالايزر الجرد (القديم والمستقر)
 class InventoryItemSerializer(serializers.ModelSerializer):
@@ -17,12 +18,11 @@ class InventoryItemSerializer(serializers.ModelSerializer):
 # 2. سيريالايزر تفاصيل الأصناف داخل الإذن (الجديد والمعدل)
 class TransferItemSerializer(serializers.ModelSerializer):
     product_name = serializers.ReadOnlyField(source='product.name')
-    unit = serializers.ReadOnlyField(source='product.unit') # كان مسبب AssertionError لأنه مش مضاف تحت
+    unit = serializers.ReadOnlyField(source='product.unit') 
     product_image = serializers.SerializerMethodField()
 
     class Meta:
         model = TransferItem
-        # ✅ تم إضافة 'unit' هنا لحل مشكلة الـ 500
         fields = [
             'id',
             'product',
@@ -71,13 +71,39 @@ class StockTransferSerializer(serializers.ModelSerializer):
 
             return transfer
 
-# 4. سيريالايزر المنتجات (🆕 المضاف لحل مشكلة الموبايل)
+# 4. سيريالايزر المنتجات (المضاف لحل مشكلة الموبايل)
 class ProductSerializer(serializers.ModelSerializer):
     """
-    هذا السيريالايزر يحول بيانات الأصناف (سمن، فيروز، إلخ) 
+    هذا السيريالايزر يحول بيانات الأصناف (سمن، فيروز، إلخ)
     لصيغة JSON يفهمها تطبيق الموبايل.
     """
     class Meta:
         model = Product
-        fields = '__all__' # بيسحب الـ (id, name, sku, unit, selling_price, image)
+        fields = '__all__'
+
+# 🆕 5. سيريالايزر العملاء (المحلات) - الجديد كلياً
+class CustomerSerializer(serializers.ModelSerializer):
+    """
+    هذا السيريالايزر مسؤول عن تحويل بيانات العملاء (المحلات)
+    بما في ذلك الإحداثيات الجغرافية (Location) لتطبيق المندوب.
+    """
+    assigned_rep_name = serializers.ReadOnlyField(source='assigned_rep.user.username')
+
+    class Meta:
+        model = Customer
+        fields = [
+            'id', 
+            'name', 
+            'owner_name', 
+            'phone', 
+            'address', 
+            'latitude', 
+            'longitude', 
+            'assigned_rep', 
+            'assigned_rep_name',
+            'is_active', 
+            'created_at'
+        ]
+        # الـ ID والتاريخ والاسم المندوب للقراءة فقط (السيرفر بيحطهم)
+        read_only_fields = ['id', 'created_at', 'assigned_rep_name']
 
