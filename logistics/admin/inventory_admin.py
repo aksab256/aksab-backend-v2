@@ -10,10 +10,12 @@ class CategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
+    # عرض البيانات المهمة في القائمة الرئيسية
     list_display = ('name', 'sku', 'category', 'base_unit', 'selling_price', 'is_active')
     list_filter = ('category', 'is_active', 'base_unit')
     search_fields = ('name', 'sku', 'barcode')
-    
+
+    # تقسيم الصفحة لمجموعات (Fieldsets)
     fieldsets = (
         ('التعريف الأساسي', {
             'fields': ('category', 'name', 'sku', 'barcode', 'is_active', 'image')
@@ -36,11 +38,11 @@ class ProductAdmin(admin.ModelAdmin):
         }),
     )
 
-    # الربط السحري للمكتبة والسكريبت
+    # 🚀 تصحيح: الـ Media لازم تكون "جوه" الـ ProductAdmin
     class Media:
         js = (
-            'https://unpkg.com/html5-qrcode',  # مكتبة الـ Scanner
-            'js/admin_barcode_scanner.js',     # السكريبت بتاعك
+            'https://unpkg.com/html5-qrcode',  # مكتبة الـ Scanner الخارجية
+            'js/admin_barcode_scanner.js',     # ملف السكريبت المحلي
         )
 
 class TransferItemInline(admin.TabularInline):
