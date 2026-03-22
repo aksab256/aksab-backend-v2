@@ -1,4 +1,5 @@
 from django.contrib import admin, messages
+from django.db import transaction
 from ..models.Invoice import Invoice
 from ..models.InvoiceItem import InvoiceItem
 from django.core.exceptions import ValidationError
@@ -16,17 +17,20 @@ class InvoiceAdmin(admin.ModelAdmin):
     inlines = [InvoiceItemInline]
 
     def save_related(self, request, form, formsets, change):
-        super().save_related(request, form, formsets, change)
-        instance = form.instance
-        
-        # تشغيل المحرك الرئيسي للحسابات والمديونية
-        instance.update_totals()
-        
-        # التحقق من حدود الائتمان بعد ما عرفنا المبالغ الحقيقية
+        """حفظ الأصناف والتحقق من المديونية في عملية واحدة آمنة"""
         try:
-            instance.full_clean()
+            with transaction.atomic():
+                # حفظ الأصناف
+                super().save_related(request, form, formsets, change)
+                
+                # حساب الإجماليات والتحقق من الائتمان
+                instance = form.instance
+                instance.update_totals()
+                
         except ValidationError as e:
+            # إظهار رسالة الخطأ ومنع إكمال الحفظ
             messages.error(request, str(e))
-            # ملحوظة: الفاتورة اتسيفت بس العميل هيطلع له تحذير، 
-            # لو عايز تمسحها برمجياً لو فشلت ممكن تضيف instance.delete()
+            # في حالة الخطأ، نحذف الفاتورة 'الهيكل' اللي اتكريتت عشان متبوظش الأرقام
+            if not change:
+                form.instance.delete()
 

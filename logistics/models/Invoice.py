@@ -23,40 +23,48 @@ class Invoice(models.Model):
     remaining_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
     def update_totals(self):
-        """المحرك الرئيسي: يحسب الإجماليات ويحدث مديونية العميل"""
+        """تحديث الحسابات وتحديث رصيد العميل"""
         with transaction.atomic():
-            # 1. حساب الإجمالي من الأصناف
             aggregate = self.items.aggregate(total=models.Sum('line_total'))
             self.total_before_discount = aggregate['total'] or 0
             self.final_total = self.total_before_discount - self.discount_amount
             self.remaining_amount = self.final_total - self.paid_amount
             
-            # 2. حفظ أرقام الفاتورة
+            # فحص حد الائتمان بعد ما عرفنا إجمالي الأصناف
+            if self.payment_method != 'cash' and self.customer.credit_limit > 0:
+                potential_balance = self.customer.current_balance + self.remaining_amount
+                if potential_balance > self.customer.credit_limit:
+                    raise ValidationError(f"⚠️ العملية مرفوضة: الرصيد سيصل إلى {potential_balance} وهو يتخطى الحد المسموح ({self.customer.credit_limit})")
+
+            # حفظ الفاتورة
             Invoice.objects.filter(pk=self.pk).update(
                 total_before_discount=self.total_before_discount,
                 final_total=self.final_total,
                 remaining_amount=self.remaining_amount
             )
 
-            # 3. تحديث مديونية العميل (فقط عند أول حساب حقيقي للفاتورة)
-            # بنستخدم update لضمان عدم تكرار الجمع لو الدالة استدعيت مرتين
+            # تحديث رصيد العميل الحقيقي
+            customer = self.customer
             if self.remaining_amount > 0:
-                self.customer.current_balance += self.remaining_amount
-                self.customer.save()
-            
+                customer.current_balance += self.remaining_amount
             if self.paid_amount > 0:
-                self.customer.total_paid += self.paid_amount
-                self.customer.save()
+                customer.total_paid += self.paid_amount
+            customer.save()
 
     def clean(self):
-        """فحص الائتمان قبل الحفظ النهائي"""
+        """منع الحفظ من البداية لو العميل متجاوز بالفعل"""
         if self.payment_method != 'cash':
-            # فحص زمني
+            # 1. فحص الرصيد الحالي قبل أي إضافة
+            if self.customer.credit_limit > 0 and self.customer.current_balance >= self.customer.credit_limit:
+                raise ValidationError(f"⚠️ العميل متجاوز بالفعل لحد الائتمان النقدي ({self.customer.current_balance})")
+
+            # 2. فحص الحد الزمني
             overdue_limit = timezone.now() - timedelta(days=self.customer.credit_days_limit)
             if Invoice.objects.filter(customer=self.customer, remaining_amount__gt=0, date_created__lt=overdue_limit).exists():
-                raise ValidationError(f"⚠️ العميل متأخر في السداد (تجاوز {self.customer.credit_days_limit} يوم)")
+                raise ValidationError(f"⚠️ العميل لديه فواتير متأخرة تجاوزت {self.customer.credit_days_limit} يوم")
 
     def save(self, *args, **kwargs):
+        self.full_clean() # إجبار الفحص قبل الحفظ
         if not self.invoice_no:
             self.invoice_no = f"INV-{timezone.now().strftime('%y%m%d%H%M%S')}"
         super().save(*args, **kwargs)
