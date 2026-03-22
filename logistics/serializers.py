@@ -24,13 +24,13 @@ class TransferItemSerializer(serializers.ModelSerializer):
         model = TransferItem
         # ✅ تم إضافة 'unit' هنا لحل مشكلة الـ 500
         fields = [
-            'id', 
-            'product', 
-            'product_name', 
-            'product_image', 
-            'quantity', 
-            'unit', 
-            'unit_at_transfer', 
+            'id',
+            'product',
+            'product_name',
+            'product_image',
+            'quantity',
+            'unit',
+            'unit_at_transfer',
             'is_received'
         ]
 
@@ -60,14 +60,24 @@ class StockTransferSerializer(serializers.ModelSerializer):
         تخصيص عملية الإنشاء لاستقبال الإذن مع أصنافه في وقت واحد
         """
         items_data = validated_data.pop('items') # استخراج قائمة الأصناف
-        
+
         with transaction.atomic():
             # إنشاء رأس الإذن
             transfer = StockTransfer.objects.create(**validated_data)
-            
+
             # إنشاء الأصناف التابعة له
             for item_data in items_data:
                 TransferItem.objects.create(transfer=transfer, **item_data)
-            
+
             return transfer
+
+# 4. سيريالايزر المنتجات (🆕 المضاف لحل مشكلة الموبايل)
+class ProductSerializer(serializers.ModelSerializer):
+    """
+    هذا السيريالايزر يحول بيانات الأصناف (سمن، فيروز، إلخ) 
+    لصيغة JSON يفهمها تطبيق الموبايل.
+    """
+    class Meta:
+        model = Product
+        fields = '__all__' # بيسحب الـ (id, name, sku, unit, selling_price, image)
 
