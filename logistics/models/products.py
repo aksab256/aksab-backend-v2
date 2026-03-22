@@ -19,7 +19,7 @@ class Product(models.Model):
 
     # --- نظام الوحدات المتداخلة (Packaging) ---
     base_unit = models.CharField(max_length=20, default='قطعة', verbose_name="الوحدة الصغرى (أصغر شيء)")
-    sub_unit = models.CharField(max_length=20, blank=True, null=True, verbose_name="الوحدة المتوسطة (اختياري - مثلاً دستة)")
+    sub_unit = models.CharField(max_length=20, blank=True, null=True, verbose_name="الوحدة المتوسطة (مثلاً دستة)")
     main_unit = models.CharField(max_length=20, default='كرتونة', verbose_name="الوحدة الكبرى")
     
     conversion_factor_sub = models.PositiveIntegerField(default=1, verbose_name="كم قطعة في الوحدة المتوسطة؟")
@@ -35,12 +35,36 @@ class Product(models.Model):
     size = models.CharField(max_length=20, blank=True, null=True, verbose_name="المقاس (مثلاً L, XL أو 42)")
     color = models.CharField(max_length=30, blank=True, null=True, verbose_name="اللون")
 
-    # --- التسعير ---
-    base_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="سعر التكلفة (للقطعة)")
-    selling_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="سعر بيع الجمهور (للقطعة)")
+    # --- التسعير (يتم إدخاله للوحدة الكبرى "الكرتونة" أو حسب سياسة الشركة) ---
+    # ملاحظة: سنعتبر هنا أن السعر المدخل هو للوحدة الكبرى (الكرتونة) لسهولة التعامل مع الموردين
+    base_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="سعر تكلفة الكرتونة")
+    selling_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="سعر بيع الكرتونة (جمهور)")
     
     is_active = models.BooleanField(default=True, verbose_name="متاح للبيع")
     created_at = models.DateTimeField(auto_now_add=True)
+
+    # --- الدوال الذكية لحساب أسعار الوحدات الصغرى ---
+    
+    @property
+    def price_per_piece(self):
+        """حساب سعر بيع القطعة الواحدة"""
+        if self.conversion_factor_main > 0:
+            return round(self.selling_price / self.conversion_factor_main, 2)
+        return self.selling_price
+
+    @property
+    def cost_per_piece(self):
+        """حساب سعر تكلفة القطعة الواحدة"""
+        if self.conversion_factor_main > 0:
+            return round(self.base_price / self.conversion_factor_main, 2)
+        return self.base_price
+
+    @property
+    def price_per_sub_unit(self):
+        """حساب سعر الوحدة المتوسطة (مثلاً الدستة)"""
+        if self.conversion_factor_sub > 0:
+            return round(self.price_per_piece * self.conversion_factor_sub, 2)
+        return 0
 
     @property
     def volume_m3(self):
