@@ -30,13 +30,13 @@ class Invoice(models.Model):
             self.final_total = self.total_before_discount - self.discount_amount
             self.remaining_amount = self.final_total - self.paid_amount
             
-            # فحص حد الائتمان بعد ما عرفنا إجمالي الأصناف
-            if self.payment_method != 'cash' and self.customer.credit_limit > 0:
+            # فحص حد الائتمان عند تحديث الأصناف لفاتورة جديدة فقط
+            if not self.pk and self.payment_method != 'cash' and self.customer.credit_limit > 0:
                 potential_balance = self.customer.current_balance + self.remaining_amount
                 if potential_balance > self.customer.credit_limit:
                     raise ValidationError(f"⚠️ العملية مرفوضة: الرصيد سيصل إلى {potential_balance} وهو يتخطى الحد المسموح ({self.customer.credit_limit})")
 
-            # حفظ الفاتورة
+            # حفظ أرقام الفاتورة
             Invoice.objects.filter(pk=self.pk).update(
                 total_before_discount=self.total_before_discount,
                 final_total=self.final_total,
@@ -52,8 +52,9 @@ class Invoice(models.Model):
             customer.save()
 
     def clean(self):
-        """منع الحفظ من البداية لو العميل متجاوز بالفعل"""
-        if self.payment_method != 'cash':
+        """منع الحفظ فقط عند إنشاء فاتورة جديدة (آجل) لتجنب منع التحصيلات"""
+        # بنشيك بس لو الفاتورة لسه بتتكريت (pk is None)
+        if not self.pk and self.payment_method != 'cash':
             # 1. فحص الرصيد الحالي قبل أي إضافة
             if self.customer.credit_limit > 0 and self.customer.current_balance >= self.customer.credit_limit:
                 raise ValidationError(f"⚠️ العميل متجاوز بالفعل لحد الائتمان النقدي ({self.customer.current_balance})")
@@ -64,7 +65,8 @@ class Invoice(models.Model):
                 raise ValidationError(f"⚠️ العميل لديه فواتير متأخرة تجاوزت {self.customer.credit_days_limit} يوم")
 
     def save(self, *args, **kwargs):
-        self.full_clean() # إجبار الفحص قبل الحفظ
+        # تشغيل full_clean عشان ينفذ منطق الـ clean أعلاه
+        self.full_clean()
         if not self.invoice_no:
             self.invoice_no = f"INV-{timezone.now().strftime('%y%m%d%H%M%S')}"
         super().save(*args, **kwargs)
