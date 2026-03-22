@@ -2,7 +2,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function startScanning(inputField, readerId) {
         const readerDiv = document.getElementById(readerId);
-        
         if (readerDiv.style.display === 'none') {
             readerDiv.style.display = 'block';
             const html5QrCode = new Html5Qrcode(readerId);
@@ -11,45 +10,35 @@ document.addEventListener('DOMContentLoaded', function() {
                 { facingMode: "environment" }, 
                 { fps: 10, qrbox: { width: 250, height: 150 } },
                 (decodedText) => {
-                    // 1. حط الكود المقروء في الخانة
-                    inputField.value = decodedText;
-
-                    // 2. 🚀 الجزء السحري: التعامل مع المنسدلة (Select2)
-                    if (window.jQuery && jQuery(inputField).hasClass('admin-autocomplete')) {
-                        // ديجانجو بيستخدم Select2 للأصناف
-                        var $select = jQuery(inputField);
-                        
-                        // بنحاول نلاقي الخيار اللي الباركود بتاعه مطابق (لو موجود في القائمة)
-                        // أو بنبعت استعلام للبحث عن المنتج بالباركود
-                        var option = new Option(decodedText, decodedText, true, true);
-                        $select.append(option).trigger('change');
-                        
-                        // تنبيه السيستم إن فيه صنف تم اختياره
-                        $select.trigger({
-                            type: 'select2:select',
-                            params: { data: { id: decodedText, text: decodedText } }
-                        });
+                    // 1. نبحث في المنسدلة عن خيار يحتوي على هذا الباركود
+                    let found = false;
+                    for (let i = 0; i < inputField.options.length; i++) {
+                        // بنشيك لو النص بتاع المنتج فيه الباركود
+                        if (inputField.options[i].text.includes(decodedText)) {
+                            inputField.selectedIndex = i;
+                            found = true;
+                            break;
+                        }
                     }
 
-                    // 3. تنبيه عام للتغيير
+                    if (!found) {
+                        alert("الباركود " + decodedText + " غير مسجل لأي منتج في القائمة!");
+                    }
+
+                    // 2. تنبيه السيستم بالتغيير
                     inputField.dispatchEvent(new Event('change', { bubbles: true }));
-                    
-                    // 4. قفل الكاميرا
+
+                    // 3. قفل الكاميرا
                     html5QrCode.stop().then(() => {
                         readerDiv.style.display = 'none';
                     });
                 }
             ).catch(err => {
-                console.error("Camera Error:", err);
+                console.error(err);
                 readerDiv.style.display = 'none';
             });
-            window.activeScanner = html5QrCode; 
         } else {
-            if (window.activeScanner) {
-                window.activeScanner.stop().then(() => {
-                    readerDiv.style.display = 'none';
-                });
-            }
+            readerDiv.style.display = 'none';
         }
     }
 
@@ -61,7 +50,7 @@ document.addEventListener('DOMContentLoaded', function() {
         scanBtn.innerHTML = '📷';
         scanBtn.type = 'button';
         scanBtn.className = 'scan-btn';
-        scanBtn.style.cssText = "margin: 0 5px; padding: 4px 10px; background: #417690; color: white; border: none; border-radius: 4px; cursor: pointer; vertical-align: middle;";
+        scanBtn.style.cssText = "margin: 0 5px; padding: 4px 10px; background: #417690; color: white; border: none; border-radius: 4px; cursor: pointer;";
         
         const readerDiv = document.createElement('div');
         const rId = 'reader-' + Math.random().toString(36).substr(2, 9);
@@ -74,13 +63,12 @@ document.addEventListener('DOMContentLoaded', function() {
         scanBtn.onclick = () => startScanning(field, rId);
     }
 
-    // استهداف حقول الباركود والأصناف
-    const targetSelectors = 'input[id*="barcode"], select[id*="product"], .admin-autocomplete';
-
-    document.querySelectorAll(targetSelectors).forEach(setupScanner);
+    // استهداف الحقول (منسدلة الأصناف أو خانة الباركود)
+    const selector = 'select[id*="product"], input[id*="barcode"]';
+    document.querySelectorAll(selector).forEach(setupScanner);
 
     const observer = new MutationObserver(() => {
-        document.querySelectorAll(targetSelectors).forEach(setupScanner);
+        document.querySelectorAll(selector).forEach(setupScanner);
     });
     observer.observe(document.body, { childList: true, subtree: true });
 });
