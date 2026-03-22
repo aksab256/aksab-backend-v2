@@ -20,7 +20,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    # المكتبات الأساسية لـ API أكسب
+    # المكتبات الأساسية لـ API
     'rest_framework',
     'rest_framework.authtoken',
     'corsheaders',
@@ -31,7 +31,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware', # لخدمة الملفات الثابتة
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -45,7 +45,7 @@ ROOT_URLCONF = 'core.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -60,10 +60,9 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'core.wsgi.application'
 
-# 🗄️ الربط الحقيقي بقاعدة بيانات السيرفر (Koyeb)
-# تم استبدال الرابط بالرابط الجديد الذي زودتني به
+# 🗄️ الربط الحقيقي بقاعدة بيانات السيرفر
 DATABASE_URL = os.getenv(
-    'DATABASE_URL', 
+    'DATABASE_URL',
     'postgres://koyeb-adm:npg_bIET6cGBLhv5@ep-old-band-ag4h5n6x.c-2.eu-central-1.pg.koyeb.app/koyebdb'
 )
 
@@ -83,10 +82,21 @@ USE_I18N = True
 USE_L10N = True
 USE_TZ = True
 
-# الملفات الثابتة
+# 📂 الملفات الثابتة (Static Files)
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# المسار اللي ديجانجو هيدور فيه على ملف JS الباركود
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'static'),
+]
+
+# استخدام WhiteNoise لخدمة الملفات المضغوطة
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# 🖼️ ملفات الميديا (صور المنتجات)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -96,8 +106,8 @@ CSRF_TRUSTED_ORIGINS = [
     'https://aksab.pythonanywhere.com',
     'https://*.koyeb.app'
 ]
-CSRF_COOKIE_SECURE = True
-SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_HTTPONLY = False
 
 # إعدادات REST Framework
