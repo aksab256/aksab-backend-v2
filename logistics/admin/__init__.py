@@ -4,14 +4,14 @@ from .sales_admin import CustomUserAdmin
 from ..models.sales_rep import SalesRepresentative
 from ..models.sales_manager import SalesManager
 
-# 🆕 استيراد الأدمن الجديد الخاص بالعملاء
+# 🆕 بنعمل Import بس عشان الملف يتقرأ والـ Decorator يشتغل
 from .customer_admin import CustomerAdmin
 from ..models.customers import Customer
 
 # استيراد أدمن المخازن
 from .inventory_admin import WarehouseAdmin, InventoryItemAdmin
 
-# إلغاء التسجيل القديم وتسجيل الجديد المنظم لليوزرز
+# إلغاء التسجيل القديم وتسجيل الجديد للمستخدمين
 try:
     admin.site.unregister(User)
 except admin.sites.NotRegistered:
@@ -21,9 +21,6 @@ admin.site.register(User, CustomUserAdmin)
 admin.site.register(SalesRepresentative)
 admin.site.register(SalesManager)
 
-# 🆕 تسجيل موديول العملاء في لوحة التحكم
-admin.site.register(Customer, CustomerAdmin)
-
-# وأي موديلات تانية للمخازن (لو محتاج تسجلهم هنا)
-# admin.site.register(Warehouse, WarehouseAdmin)
+# ❌ امسح أو عطل السطر ده (هو ده سبب المشكلة):
+# admin.site.register(Customer, CustomerAdmin) 
 
