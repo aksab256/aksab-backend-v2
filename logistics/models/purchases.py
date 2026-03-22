@@ -1,5 +1,4 @@
 # logistics/models/purchases.py
-
 from django.db import models, transaction
 from .products import Product
 from .mainInventory import Warehouse, InventoryItem
@@ -13,7 +12,8 @@ class Supplier(models.Model):
         verbose_name = "مورد"
         verbose_name_plural = "الموردين"
 
-    def __str__(self): return self.name
+    def __str__(self):
+        return self.name
 
 class PurchaseInvoice(models.Model):
     invoice_no = models.CharField(max_length=100, unique=True, verbose_name="رقم فاتورة المورد")
@@ -26,6 +26,15 @@ class PurchaseInvoice(models.Model):
         verbose_name = "فاتورة شراء"
         verbose_name_plural = "فواتير الشراء"
 
+    def __str__(self):
+        return f"فاتورة {self.invoice_no} - {self.supplier.name}"
+
+    def sync_total(self):
+        """حساب إجمالي الفاتورة بناءً على الأصناف المسجلة"""
+        total = sum(item.quantity_in_main_unit * item.cost_price_per_main_unit for item in self.items.all())
+        # نستخدم update عشان ميتكررش استدعاء الـ save ويحصل loop
+        PurchaseInvoice.objects.filter(pk=self.pk).update(total_amount=total)
+
 class PurchaseItem(models.Model):
     invoice = models.ForeignKey(PurchaseInvoice, related_name='items', on_delete=models.CASCADE)
     product = models.ForeignKey(Product, on_delete=models.PROTECT, verbose_name="الصنف")
@@ -34,10 +43,9 @@ class PurchaseItem(models.Model):
 
     def save(self, *args, **kwargs):
         with transaction.atomic():
-            # 🚀 الحسبة الذكية: تحويل الكراتين لقطع عشان المخزن بيفهم أصغر وحدة
+            # 1. تحديث المخزن (القطع الصغير)
             total_pieces = self.quantity_in_main_unit * self.product.conversion_factor_main
             
-            # تحديث رصيد المخزن الرئيسي المختار في الفاتورة
             inventory, created = InventoryItem.objects.get_or_create(
                 warehouse=self.invoice.warehouse,
                 product=self.product
@@ -45,5 +53,22 @@ class PurchaseItem(models.Model):
             inventory.stock_quantity += total_pieces
             inventory.save()
             
+            # 2. حفظ سجل الصنف نفسه
             super().save(*args, **kwargs)
+            
+            # 3. تحديث إجمالي الفاتورة أوتوماتيكياً
+            self.invoice.sync_total()
+
+    def delete(self, *args, **kwargs):
+        # في حالة مسح صنف من الفاتورة، نطرح الكمية من المخزن ونحدث الإجمالي
+        with transaction.atomic():
+            total_pieces = self.quantity_in_main_unit * self.product.conversion_factor_main
+            inventory = InventoryItem.objects.filter(warehouse=self.invoice.warehouse, product=self.product).first()
+            if inventory:
+                inventory.stock_quantity -= total_pieces
+                inventory.save()
+            
+            invoice = self.invoice
+            super().delete(*args, **kwargs)
+            invoice.sync_total()
 
