@@ -27,3 +27,6 @@ from .invoice_admin import InvoiceAdmin
 # أضف هذا السطر
 from .transactions_admin import CollectionAdmin
 
+# استيراد أدمن المشتريات (الموردين والفواتير)
+from .purchases_admin import SupplierAdmin, PurchaseInvoiceAdmin
+

@@ -11,3 +11,6 @@ from .InvoiceItem import InvoiceItem
 # أضف هذا السطر مع بقية الـ imports
 from .payments import Collection
 
+# أضف هذا السطر في نهاية ملف __init__.py
+from .purchases import Supplier, PurchaseInvoice, PurchaseItem
+
