@@ -50,12 +50,10 @@ class TransferItemInline(admin.TabularInline):
 
 @admin.register(Warehouse)
 class WarehouseAdmin(admin.ModelAdmin):
-    # أضفنا view_inventory هنا
     list_display = ('name', 'warehouse_type', 'assigned_rep', 'is_active', 'view_inventory')
     list_filter = ('warehouse_type', 'is_active')
     search_fields = ('name',)
 
-    # 1️⃣ زرار تقرير الأرصدة في جدول المخازن
     def view_inventory(self, obj):
         return format_html(
             '<a class="button" href="report/{}/" target="_blank" style="background-color: #417690; color: white; padding: 5px 10px; border-radius: 4px;">تقرير الأرصدة 📦</a>',
@@ -63,7 +61,6 @@ class WarehouseAdmin(admin.ModelAdmin):
         )
     view_inventory.short_description = "الأرصدة الحالية"
 
-    # 2️⃣ تسجيل الـ URL الخاص بالتقرير
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
@@ -71,15 +68,33 @@ class WarehouseAdmin(admin.ModelAdmin):
         ]
         return custom_urls + urls
 
-    # 3️⃣ الدالة التي تجلب بيانات المخزون للمخزن المحدد
     def inventory_report_view(self, request, warehouse_id):
         warehouse = get_object_or_404(Warehouse, pk=warehouse_id)
-        # جلب الأصناف المربوطة بهذا المخزن مع بيانات المنتج
         inventory_items = InventoryItem.objects.filter(warehouse=warehouse).select_related('product', 'product__category')
         
+        # تحويل الأرصدة الخام إلى (كرتونة + قطعة)
+        formatted_items = []
+        for item in inventory_items:
+            product = item.product
+            total_qty = item.stock_quantity
+            factor = product.conversion_factor_main if product.conversion_factor_main else 1
+            
+            cartons = total_qty // factor
+            pieces = total_qty % factor
+            
+            formatted_items.append({
+                'sku': product.sku,
+                'name': product.name,
+                'category': product.category.name if product.category else "عام",
+                'total_qty': total_qty,
+                'cartons': int(cartons),
+                'pieces': int(pieces),
+                'status': 'متوفر' if total_qty > 10 else 'منخفض' if total_qty > 0 else 'منتهي'
+            })
+            
         context = {
             'warehouse': warehouse,
-            'inventory_items': inventory_items,
+            'items': formatted_items,
             'title': f"تقرير أرصدة مخزن: {warehouse.name}",
         }
         return render(request, 'admin/logistics/inventory_report.html', context)

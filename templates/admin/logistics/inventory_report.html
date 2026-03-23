@@ -12,7 +12,8 @@
         th { background-color: #417690; color: white; padding: 12px; border: 1px solid #ddd; }
         td { padding: 10px; border: 1px solid #ddd; text-align: center; }
         tr:nth-child(even) { background-color: #f9f9f9; }
-        .low-stock { color: #d32f2f; font-weight: bold; } /* للأصناف اللي رصيدها صفر */
+        .carton-val { color: #2c3e50; font-weight: bold; }
+        .low-stock { color: #d32f2f; font-weight: bold; }
         .btn-print { background: #27ae60; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; }
     </style>
 </head>
@@ -23,7 +24,7 @@
     </div>
 
     <div class="report-header">
-        <h1>تقرير حالة المخزون الحالية</h1>
+        <h1>تقرير حالة المخزون التفصيلي</h1>
         <p>شركة أكساب للتجارة</p>
     </div>
 
@@ -37,27 +38,32 @@
         <thead>
             <tr>
                 <th>#</th>
-                <th>كود المنتج</th>
                 <th style="text-align: right;">اسم الصنف</th>
                 <th>التصنيف</th>
-                <th>الرصيد المتاح (بالقطعة)</th>
+                <th>الإجمالي (قطعة)</th>
+                <th>تفصيل الرصيد (كرتونة + قطعة)</th>
                 <th>الحالة</th>
             </tr>
         </thead>
         <tbody>
-            {% for item in inventory_items %}
+            {% for entry in items %}
             <tr>
                 <td>{{ forloop.counter }}</td>
-                <td>{{ item.product.id|stringformat:".8s" }}</td>
-                <td style="text-align: right;">{{ item.product.name }}</td>
-                <td>{{ item.product.category.name|default:"عام" }}</td>
-                <td {% if item.stock_quantity <= 0 %}class="low-stock"{% endif %}>
-                    {{ item.stock_quantity }}
+                <td style="text-align: right;">{{ entry.name }}</td>
+                <td>{{ entry.category }}</td>
+                <td {% if entry.total_qty <= 0 %}class="low-stock"{% endif %}>
+                    {{ entry.total_qty }}
+                </td>
+                <td class="carton-val">
+                    {{ entry.cartons }} كرتونة
+                    {% if entry.pieces > 0 %}
+                        و {{ entry.pieces }} قطعة
+                    {% endif %}
                 </td>
                 <td>
-                    {% if item.stock_quantity > 10 %}
+                    {% if entry.status == 'متوفر' %}
                         <span style="color: green;">متوفر</span>
-                    {% elif item.stock_quantity > 0 %}
+                    {% elif entry.status == 'منخفض' %}
                         <span style="color: orange;">منخفض</span>
                     {% else %}
                         <span style="color: red;">منتهي</span>
@@ -73,7 +79,7 @@
     </table>
 
     <div style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 10px; font-size: 12px; text-align: center;">
-        تم استخراج هذا التقرير آلياً من نظام أكساب ERP
+        تم استخراج هذا التقرير آلياً من نظام أكساب ERP - وحدة إدارة المخازن
     </div>
 
 </body>
