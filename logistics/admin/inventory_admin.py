@@ -1,4 +1,5 @@
 from django.contrib import admin
+import datetime
 from ..models.products import Product, Category
 from ..models.mainInventory import Warehouse, InventoryItem
 from ..models.transactions import StockTransfer, TransferItem
@@ -29,7 +30,7 @@ class ProductAdmin(admin.ModelAdmin):
             'fields': (('base_price', 'selling_price'),)
         }),
         ('الأبعاد والخصائص', {
-            'classes': ('collapse',), # جعلها قابلة للطي لتوفير مساحة
+            'classes': ('collapse',), # قابلة للطي، اضغط "إظهار" لرؤيتها
             'fields': (('weight', 'length', 'width', 'height'), ('size', 'color'))
         }),
     )
@@ -40,11 +41,11 @@ class ProductAdmin(admin.ModelAdmin):
             'js/admin_barcode_scanner.js',
         )
 
-# 🆕 تعديل أصناف التحويل لتشمل المنسدلة الجديدة
+# 🆕 أصناف التحويل (الجدول الفرعي داخل إذن التحويل)
 class TransferItemInline(admin.TabularInline):
     model = TransferItem
     extra = 1
-    # أضفنا selected_unit هنا
+    # الحقول تشمل الوحدة المختارة لضمان دقة التحويل
     fields = ('product', 'selected_unit', 'quantity', 'is_received')
 
 @admin.register(Warehouse)
@@ -57,8 +58,7 @@ class InventoryItemAdmin(admin.ModelAdmin):
     list_display = ('product', 'warehouse', 'get_stock_display')
     list_filter = ('warehouse', 'product__category')
     search_fields = ('product__name', 'product__sku')
-    
-    # دالة لعرض الكمية بشكل أوضح (مثلاً: 125 قطعة)
+
     def get_stock_display(self, obj):
         return f"{obj.stock_quantity} قطعة"
     get_stock_display.short_description = "الرصيد المتاح"
@@ -69,11 +69,12 @@ class StockTransferAdmin(admin.ModelAdmin):
     list_filter = ('status', 'sender_warehouse', 'receiver_warehouse')
     search_fields = ('transfer_no', 'notes')
     inlines = [TransferItemInline]
-    
-    # تحسين اختيار المخازن في التحويل
+
+    # تصحيح دالة الحفظ التلقائي لكود التحويل
     def save_model(self, request, obj, form, change):
         if not obj.transfer_no:
-            import datetime
+            # توليد رقم إذن تلقائي بناءً على التاريخ والوقت
             obj.transfer_no = f"TRF-{datetime.datetime.now().strftime('%y%m%d%H%M')}"
-        super().save(request, obj, form, change)
+        # تم تصحيح super().save إلى super().save_model لمنع الـ AttributeError
+        super().save_model(request, obj, form, change)
 
