@@ -10,59 +10,70 @@ class CategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    # عرض البيانات المهمة في القائمة الرئيسية
-    list_display = ('name', 'sku', 'category', 'base_unit', 'selling_price', 'is_active')
-    list_filter = ('category', 'is_active', 'base_unit')
+    list_display = ('name', 'sku', 'category', 'main_unit', 'selling_price', 'is_active')
+    list_filter = ('category', 'is_active', 'main_unit')
     search_fields = ('name', 'sku', 'barcode')
-
-    # تقسيم الصفحة لمجموعات (Fieldsets)
+    
     fieldsets = (
         ('التعريف الأساسي', {
             'fields': ('category', 'name', 'sku', 'barcode', 'is_active', 'image')
         }),
         ('نظام الوحدات المتداخلة', {
-            'description': "حدد الوحدات من الأصغر للأكبر ومعامل التحويل بينهما",
+            'description': "الوحدات من الأصغر للأكبر. مثال: قطعة -> دستة (12 قطعة) -> كرتونة (144 قطعة)",
             'fields': (
                 ('base_unit', 'sub_unit', 'main_unit'),
                 ('conversion_factor_sub', 'conversion_factor_main')
             )
         }),
-        ('الشحن والخدمات اللوجستية (الأبعاد والوزن)', {
-            'fields': (('weight', 'length'), ('width', 'height'))
-        }),
-        ('المقاس واللون (للملابس والأصناف المتنوعة)', {
-            'fields': (('size', 'color'),)
-        }),
-        ('التسعير الأساسي', {
+        ('التسعير (للكرتونة)', {
             'fields': (('base_price', 'selling_price'),)
+        }),
+        ('الأبعاد والخصائص', {
+            'classes': ('collapse',), # جعلها قابلة للطي لتوفير مساحة
+            'fields': (('weight', 'length', 'width', 'height'), ('size', 'color'))
         }),
     )
 
-    # 🚀 تصحيح: الـ Media لازم تكون "جوه" الـ ProductAdmin
     class Media:
         js = (
-            'https://unpkg.com/html5-qrcode',  # مكتبة الـ Scanner الخارجية
-            'js/admin_barcode_scanner.js',     # ملف السكريبت المحلي
+            'https://unpkg.com/html5-qrcode',
+            'js/admin_barcode_scanner.js',
         )
 
+# 🆕 تعديل أصناف التحويل لتشمل المنسدلة الجديدة
 class TransferItemInline(admin.TabularInline):
     model = TransferItem
     extra = 1
-    fields = ('product', 'quantity', 'unit_at_transfer', 'is_received')
+    # أضفنا selected_unit هنا
+    fields = ('product', 'selected_unit', 'quantity', 'is_received')
 
 @admin.register(Warehouse)
 class WarehouseAdmin(admin.ModelAdmin):
-    list_display = ('name', 'warehouse_type', 'is_active')
+    list_display = ('name', 'warehouse_type', 'assigned_rep', 'is_active')
+    list_filter = ('warehouse_type', 'is_active')
 
 @admin.register(InventoryItem)
 class InventoryItemAdmin(admin.ModelAdmin):
-    list_display = ('product', 'warehouse', 'stock_quantity')
-    list_filter = ('warehouse',)
+    list_display = ('product', 'warehouse', 'get_stock_display')
+    list_filter = ('warehouse', 'product__category')
     search_fields = ('product__name', 'product__sku')
+    
+    # دالة لعرض الكمية بشكل أوضح (مثلاً: 125 قطعة)
+    def get_stock_display(self, obj):
+        return f"{obj.stock_quantity} قطعة"
+    get_stock_display.short_description = "الرصيد المتاح"
 
 @admin.register(StockTransfer)
 class StockTransferAdmin(admin.ModelAdmin):
-    list_display = ('transfer_no', 'sender_warehouse', 'status', 'created_at')
-    list_filter = ('status', 'sender_warehouse')
+    list_display = ('transfer_no', 'sender_warehouse', 'receiver_warehouse', 'status', 'created_at')
+    list_filter = ('status', 'sender_warehouse', 'receiver_warehouse')
+    search_fields = ('transfer_no', 'notes')
     inlines = [TransferItemInline]
+    
+    # تحسين اختيار المخازن في التحويل
+    def save_model(self, request, obj, form, change):
+        if not obj.transfer_no:
+            import datetime
+            obj.transfer_no = f"TRF-{datetime.datetime.now().strftime('%y%m%d%H%M')}"
+        super().save(request, obj, form, change)
 

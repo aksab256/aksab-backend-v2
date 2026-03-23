@@ -4,25 +4,48 @@ from django.core.exceptions import ValidationError
 from .mainInventory import InventoryItem
 
 class InvoiceItem(models.Model):
+    UNIT_CHOICES = [
+        ('main', 'وحدة كبرى (كرتونة)'),
+        ('sub', 'وحدة متوسطة (دستة/ربطة)'),
+        ('base', 'وحدة صغرى (قطعة)'),
+    ]
+
     invoice = models.ForeignKey('Invoice', related_name='items', on_delete=models.CASCADE)
     product = models.ForeignKey('Product', on_delete=models.PROTECT, verbose_name="المنتج")
     
+    selected_unit = models.CharField(
+        max_length=10, 
+        choices=UNIT_CHOICES, 
+        default='base', 
+        verbose_name="الوحدة المباعة"
+    )
+    
     unit_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, verbose_name="السعر")
     quantity = models.PositiveIntegerField(validators=[MinValueValidator(1)], verbose_name="الكمية")
-    discount_per_unit = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="خصم/قطعة")
+    discount_per_unit = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="خصم/وحدة")
     
     line_total = models.DecimalField(max_digits=12, decimal_places=2, editable=False)
 
     def save(self, *args, **kwargs):
         with transaction.atomic():
-            # 1. تحديد السعر الافتراضي لو لم يتم إدخاله
-            if not self.unit_price:
-                self.unit_price = self.product.selling_price
+            # 1. تحديد معامل التحويل والسعر بناءً على الوحدة
+            if self.selected_unit == 'main':
+                factor = self.product.conversion_factor_main
+                default_price = self.product.selling_price
+            elif self.selected_unit == 'sub':
+                factor = self.product.conversion_factor_sub
+                default_price = self.product.price_per_sub_unit
+            else:
+                factor = 1
+                default_price = self.product.price_per_piece
 
-            # 2. حساب إجمالي السطر المالي
+            if not self.unit_price:
+                self.unit_price = default_price
+
+            # 2. حساب إجمالي السطر
             self.line_total = self.quantity * (self.unit_price - self.discount_per_unit)
 
-            # 3. منطق تحديث المخزن (مخزن الفاتورة المحدد)
+            # 3. تحديث المخزن (بالقطع الصغيرة)
             target_warehouse = self.invoice.warehouse
             if target_warehouse:
                 inventory, created = InventoryItem.objects.get_or_create(
@@ -31,55 +54,46 @@ class InvoiceItem(models.Model):
                     defaults={'stock_quantity': 0}
                 )
 
-                # تحويل كمية الفاتورة لقطع صغيرة بناءً على معامل التحويل
-                total_pieces = self.quantity * self.product.conversion_factor_main
+                total_pieces = self.quantity * factor
                 
-                # 🔄 في حالة التعديل: بنرجع الكمية القديمة للمخزن أولاً عشان نحسب من جديد
+                # إرجاع الكمية القديمة في حالة التعديل
                 if self.pk:
                     old_item = InvoiceItem.objects.get(pk=self.pk)
-                    old_pieces = old_item.quantity * old_item.product.conversion_factor_main
-                    inventory.stock_quantity += old_pieces
+                    old_factor = self.product.conversion_factor_main if old_item.selected_unit == 'main' else \
+                                 self.product.conversion_factor_sub if old_item.selected_unit == 'sub' else 1
+                    inventory.stock_quantity += (old_item.quantity * old_factor)
 
-                # ⚠️ التأكد من أن الرصيد يكفي
                 if inventory.stock_quantity < total_pieces:
                     raise ValidationError(
                         f"⚠️ عجز في مخزن ({target_warehouse.name}) للصنف {self.product.name}. "
-                        f"المتاح {inventory.stock_quantity} قطعة فقط."
+                        f"المتاح {inventory.stock_quantity} قطعة، والمطلوب {total_pieces} قطعة."
                     )
                 
-                # الخصم الفعلي من المخزن
                 inventory.stock_quantity -= total_pieces
                 inventory.save()
             else:
                 raise ValidationError("⚠️ لم يتم تحديد مخزن في الفاتورة للسحب منه!")
 
-            # حفظ السجل
             super().save(*args, **kwargs)
-
-            # 4. تحديث إجماليات الفاتورة ورصيد العميل
             self.invoice.update_totals()
 
     def delete(self, *args, **kwargs):
-        """إرجاع البضاعة للمخزن عند مسح صنف من الفاتورة"""
         with transaction.atomic():
             target_warehouse = self.invoice.warehouse
             if target_warehouse:
-                inventory = InventoryItem.objects.filter(
-                    warehouse=target_warehouse, 
-                    product=self.product
-                ).first()
+                inventory = InventoryItem.objects.filter(warehouse=target_warehouse, product=self.product).first()
                 if inventory:
-                    total_pieces = self.quantity * self.product.conversion_factor_main
-                    inventory.stock_quantity += total_pieces
+                    factor = self.product.conversion_factor_main if self.selected_unit == 'main' else \
+                             self.product.conversion_factor_sub if self.selected_unit == 'sub' else 1
+                    inventory.stock_quantity += (self.quantity * factor)
                     inventory.save()
             
             invoice = self.invoice
             super().delete(*args, **kwargs)
-            # تحديث الفاتورة الأم مالياً بعد الحذف
             invoice.update_totals()
 
     def __str__(self):
-        return f"{self.product.name} ({self.quantity})"
+        return f"{self.product.name} ({self.quantity} {self.get_selected_unit_display()})"
 
     class Meta:
         verbose_name = "صنف فاتورة"

@@ -4,8 +4,10 @@ from ..models.SalesReturn import SalesReturn, SalesReturnItem
 class SalesReturnItemInline(admin.TabularInline):
     model = SalesReturnItem
     extra = 1
-    fields = ['product', 'quantity', 'unit_price', 'line_total']
+    # 🆕 التحديث: إضافة selected_unit وتفعيل autocomplete
+    fields = ['product', 'selected_unit', 'quantity', 'unit_price', 'line_total']
     readonly_fields = ['line_total']
+    autocomplete_fields = ['product']
 
 @admin.register(SalesReturn)
 class SalesReturnAdmin(admin.ModelAdmin):
@@ -17,10 +19,18 @@ class SalesReturnAdmin(admin.ModelAdmin):
     # حقول القراءة فقط
     readonly_fields = ['return_no', 'total_return_amount', 'date_returned']
     
-    # إضافة الأصناف كـ Inline
     inlines = [SalesReturnItemInline]
 
-    # دوال لجلب بيانات من الفاتورة المرتبطة للعرض في القائمة
+    fieldsets = (
+        ('معلومات المرتجع الأساسية', {
+            'fields': (('return_no', 'date_returned'), ('invoice', 'reason'))
+        }),
+        ('الأرقام المالية للمرتجع', {
+            'fields': ('total_return_amount',)
+        }),
+    )
+
+    # دوال العرض الذكية
     def get_invoice_no(self, obj):
         return obj.invoice.invoice_no
     get_invoice_no.short_description = 'رقم الفاتورة'
@@ -29,12 +39,11 @@ class SalesReturnAdmin(admin.ModelAdmin):
         return obj.invoice.customer.name
     get_customer.short_description = 'العميل'
 
-    fieldsets = (
-        ('معلومات المرتجع الأساسية', {
-            'fields': ('return_no', 'invoice', 'date_returned', 'reason')
-        }),
-        ('الأرقام المالية', {
-            'fields': ('total_return_amount',)
-        }),
-    )
+    # 🆕 حقن سكريبت الباركود لسهولة المرتجعات
+    class Media:
+        js = (
+            'https://unpkg.com/html5-qrcode/html5-qrcode.min.js',
+            'js/admin_barcode_scanner.js',
+        )
+
 

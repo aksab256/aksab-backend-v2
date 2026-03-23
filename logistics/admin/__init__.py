@@ -4,34 +4,27 @@ from .sales_admin import CustomUserAdmin
 from ..models.sales_rep import SalesRepresentative
 from ..models.sales_manager import SalesManager
 
-# 🆕 بنعمل Import بس عشان الملف يتقرأ والـ Decorator يشتغل
+# استيراد ملفات الأدمن (الاستيراد هنا يشغل الـ @admin.register تلقائياً)
 from .customer_admin import CustomerAdmin
-from ..models.customers import Customer
+from .inventory_admin import WarehouseAdmin, InventoryItemAdmin, ProductAdmin, CategoryAdmin, StockTransferAdmin
+from .invoice_admin import InvoiceAdmin
+from .purchases_admin import SupplierAdmin, PurchaseInvoiceAdmin
+from .supplier_payment_admin import SupplierPaymentAdmin
+from .sales_return_admin import SalesReturnAdmin
+from .transactions_admin import CollectionAdmin
 
-# استيراد أدمن المخازن
-from .inventory_admin import WarehouseAdmin, InventoryItemAdmin
-
-# إلغاء التسجيل القديم وتسجيل الجديد للمستخدمين
+# إعادة تسجيل مستخدمي النظام بالصلاحيات الجديدة
 try:
     admin.site.unregister(User)
 except admin.sites.NotRegistered:
     pass
 
 admin.site.register(User, CustomUserAdmin)
-admin.site.register(SalesRepresentative)
-admin.site.register(SalesManager)
-from .invoice_admin import InvoiceAdmin
-# ❌ امسح أو عطل السطر ده (هو ده سبب المشكلة):
-# admin.site.register(Customer, CustomerAdmin) 
 
-# أضف هذا السطر
-from .transactions_admin import CollectionAdmin
-
-# استيراد أدمن المشتريات (الموردين والفواتير)
-from .purchases_admin import SupplierAdmin, PurchaseInvoiceAdmin
-# استيراد أدمن سدادات الموردين
-from .supplier_payment_admin import SupplierPaymentAdmin
-
-# أضف هذا السطر في نهاية ملف logistics/admin/__init__.py
-from .sales_return_admin import SalesReturnAdmin
+# تسجيل الموديلات البسيطة التي لم ننشئ لها ملفات مستقلة بعد
+try:
+    admin.site.register(SalesRepresentative)
+    admin.site.register(SalesManager)
+except admin.sites.AlreadyRegistered:
+    pass
 

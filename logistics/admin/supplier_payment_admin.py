@@ -8,9 +8,9 @@ class SupplierPaymentAdmin(admin.ModelAdmin):
     search_fields = ('supplier__name', 'reference')
     date_hierarchy = 'date'
 
-    # اختياري: منع تعديل المبلغ بعد الحفظ لضمان دقة الحسابات
+    # منع تعديل البيانات المالية بعد الحفظ لضمان سلامة الحسابات
     def get_readonly_fields(self, request, obj=None):
-        if obj: # لو العملية مسجلة بالفعل
+        if obj: # في حالة التعديل (السجل موجود مسبقاً)
             return ('supplier', 'amount', 'date')
         return ()
 

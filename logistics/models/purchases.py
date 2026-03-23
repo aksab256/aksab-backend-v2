@@ -1,4 +1,5 @@
 import uuid
+import datetime
 from django.db import models, transaction
 from .products import Product
 from .mainInventory import Warehouse, InventoryItem
@@ -17,7 +18,6 @@ class Supplier(models.Model):
         return f"{self.name} (رصيد: {self.balance})"
 
 class PurchaseInvoice(models.Model):
-    # توليد رقم الفاتورة أوتوماتيكياً (مثال: PUR-20231025-ABCD)
     invoice_no = models.CharField(max_length=100, unique=True, editable=False, verbose_name="رقم الفاتورة الداخلي")
     supplier_invoice_ref = models.CharField(max_length=100, blank=True, null=True, verbose_name="رقم فاتورة المورد (اختياري)")
     supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE, verbose_name="المورد")
@@ -30,9 +30,7 @@ class PurchaseInvoice(models.Model):
         verbose_name_plural = "فواتير الشراء"
 
     def save(self, *args, **kwargs):
-        # توليد رقم فاتورة تلقائي لو مش موجود
         if not self.invoice_no:
-            import datetime
             date_str = datetime.datetime.now().strftime('%Y%m%d')
             unique_id = uuid.uuid4().hex[:4].upper()
             self.invoice_no = f"PUR-{date_str}-{unique_id}"
@@ -44,69 +42,79 @@ class PurchaseInvoice(models.Model):
     def sync_total(self):
         """حساب إجمالي الفاتورة وتحديث رصيد المورد"""
         with transaction.atomic():
-            # 1. احسب الإجمالي الجديد من الأصناف
-            new_total = sum(item.quantity_in_main_unit * item.cost_price_per_main_unit for item in self.items.all())
-            
-            # 2. الفرق بين الإجمالي القديم والجديد عشان نحدث رصيد المورد بدقة
+            # حساب الإجمالي الجديد من مجموع (سعر الوحدة المختارة * الكمية)
+            new_total = sum(item.line_total for item in self.items.all())
             diff = new_total - self.total_amount
             
-            # 3. تحديث الفاتورة
             PurchaseInvoice.objects.filter(pk=self.pk).update(total_amount=new_total)
+            self.total_amount = new_total
             
-            # 4. تحديث رصيد المورد (زيادة مديونية)
+            # تحديث رصيد المورد
             self.supplier.balance += diff
             self.supplier.save()
 
 class PurchaseItem(models.Model):
+    UNIT_CHOICES = [
+        ('main', 'وحدة كبرى (كرتونة)'),
+        ('sub', 'وحدة متوسطة (دستة/ربطة)'),
+        ('base', 'وحدة صغرى (قطعة)'),
+    ]
+
     invoice = models.ForeignKey(PurchaseInvoice, related_name='items', on_delete=models.CASCADE)
     product = models.ForeignKey(Product, on_delete=models.PROTECT, verbose_name="الصنف")
-    quantity_in_main_unit = models.PositiveIntegerField(verbose_name="الكمية (بالكرتونة)")
-    cost_price_per_main_unit = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="سعر شراء الكرتونة")
+    
+    # 🆕 المنسدلة الموحدة
+    selected_unit = models.CharField(max_length=10, choices=UNIT_CHOICES, default='main', verbose_name="وحدة الشراء")
+    
+    quantity = models.PositiveIntegerField(verbose_name="الكمية")
+    cost_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="سعر شراء الوحدة")
+    line_total = models.DecimalField(max_digits=12, decimal_places=2, default=0, editable=False)
 
     def save(self, *args, **kwargs):
         with transaction.atomic():
-            # 1. تحديث المخزن (تحويل كراتين لقطع)
-            total_pieces = self.quantity_in_main_unit * self.product.conversion_factor_main
+            # 1. حساب إجمالي السطر المالي
+            self.line_total = self.quantity * self.cost_price
+
+            # 2. تحديد معامل التحويل للمخزن
+            factor = self.product.conversion_factor_main if self.selected_unit == 'main' else \
+                     self.product.conversion_factor_sub if self.selected_unit == 'sub' else 1
+            
+            total_pieces = self.quantity * factor
+
+            # 3. تحديث المخزن (زيادة الرصيد)
             inventory, created = InventoryItem.objects.get_or_create(
                 warehouse=self.invoice.warehouse,
-                product=self.product
+                product=self.product,
+                defaults={'stock_quantity': 0}
             )
-            
-            # لو تعديل (نطرح القديم ونزود الجديد)
+
+            # لو تعديل: نطرح الكمية القديمة بالمعامل القديم قبل إضافة الجديد
             if self.pk:
                 old_item = PurchaseItem.objects.get(pk=self.pk)
-                old_pieces = old_item.quantity_in_main_unit * old_item.product.conversion_factor_main
-                inventory.stock_quantity -= old_pieces
+                old_factor = self.product.conversion_factor_main if old_item.selected_unit == 'main' else \
+                             self.product.conversion_factor_sub if old_item.selected_unit == 'sub' else 1
+                inventory.stock_quantity -= (old_item.quantity * old_factor)
 
             inventory.stock_quantity += total_pieces
             inventory.save()
 
-            # 2. حفظ سجل الصنف
             super().save(*args, **kwargs)
-
-            # 3. تحديث إجمالي الفاتورة ورصيد المورد
             self.invoice.sync_total()
 
     def delete(self, *args, **kwargs):
         with transaction.atomic():
-            # طرح الكمية من المخزن عند مسح الصنف
-            total_pieces = self.quantity_in_main_unit * self.product.conversion_factor_main
+            factor = self.product.conversion_factor_main if self.selected_unit == 'main' else \
+                     self.product.conversion_factor_sub if self.selected_unit == 'sub' else 1
+            
             inventory = InventoryItem.objects.filter(warehouse=self.invoice.warehouse, product=self.product).first()
             if inventory:
-                inventory.stock_quantity -= total_pieces
+                inventory.stock_quantity -= (self.quantity * factor)
                 inventory.save()
-            
-            # تحديث رصيد المورد (طرح قيمة الصنف الممسوح)
-            amount_to_subtract = self.quantity_in_main_unit * self.cost_price_per_main_unit
-            self.invoice.supplier.balance -= amount_to_subtract
-            self.invoice.supplier.save()
 
             invoice = self.invoice
             super().delete(*args, **kwargs)
-            # تحديث إجمالي الفاتورة المسجل
             invoice.sync_total()
 
-# موديل جديد للمدفوعات (عشان لما تدفع فلوس للمورد رصيده يقل)
 class SupplierPayment(models.Model):
     supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE, related_name='payments', verbose_name="المورد")
     amount = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="المبلغ المدفوع")
@@ -115,7 +123,7 @@ class SupplierPayment(models.Model):
 
     def save(self, *args, **kwargs):
         with transaction.atomic():
-            if not self.pk: # عند الإنشاء فقط
+            if not self.pk:
                 self.supplier.balance -= self.amount
                 self.supplier.save()
             super().save(*args, **kwargs)
