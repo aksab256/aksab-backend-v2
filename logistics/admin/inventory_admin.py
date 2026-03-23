@@ -1,4 +1,7 @@
 from django.contrib import admin
+from django.urls import path
+from django.shortcuts import render, get_object_or_404
+from django.utils.html import format_html
 import datetime
 from ..models.products import Product, Category
 from ..models.mainInventory import Warehouse, InventoryItem
@@ -14,7 +17,6 @@ class ProductAdmin(admin.ModelAdmin):
     list_display = ('name', 'sku', 'category', 'main_unit', 'selling_price', 'is_active')
     list_filter = ('category', 'is_active', 'main_unit')
     search_fields = ('name', 'sku', 'barcode')
-    
     fieldsets = (
         ('التعريف الأساسي', {
             'fields': ('category', 'name', 'sku', 'barcode', 'is_active', 'image')
@@ -30,7 +32,7 @@ class ProductAdmin(admin.ModelAdmin):
             'fields': (('base_price', 'selling_price'),)
         }),
         ('الأبعاد والخصائص', {
-            'classes': ('collapse',), # قابلة للطي، اضغط "إظهار" لرؤيتها
+            'classes': ('collapse',),
             'fields': (('weight', 'length', 'width', 'height'), ('size', 'color'))
         }),
     )
@@ -41,17 +43,46 @@ class ProductAdmin(admin.ModelAdmin):
             'js/admin_barcode_scanner.js',
         )
 
-# 🆕 أصناف التحويل (الجدول الفرعي داخل إذن التحويل)
 class TransferItemInline(admin.TabularInline):
     model = TransferItem
     extra = 1
-    # الحقول تشمل الوحدة المختارة لضمان دقة التحويل
     fields = ('product', 'selected_unit', 'quantity', 'is_received')
 
 @admin.register(Warehouse)
 class WarehouseAdmin(admin.ModelAdmin):
-    list_display = ('name', 'warehouse_type', 'assigned_rep', 'is_active')
+    # أضفنا view_inventory هنا
+    list_display = ('name', 'warehouse_type', 'assigned_rep', 'is_active', 'view_inventory')
     list_filter = ('warehouse_type', 'is_active')
+    search_fields = ('name',)
+
+    # 1️⃣ زرار تقرير الأرصدة في جدول المخازن
+    def view_inventory(self, obj):
+        return format_html(
+            '<a class="button" href="report/{}/" target="_blank" style="background-color: #417690; color: white; padding: 5px 10px; border-radius: 4px;">تقرير الأرصدة 📦</a>',
+            obj.pk
+        )
+    view_inventory.short_description = "الأرصدة الحالية"
+
+    # 2️⃣ تسجيل الـ URL الخاص بالتقرير
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('report/<int:warehouse_id>/', self.admin_site.admin_view(self.inventory_report_view)),
+        ]
+        return custom_urls + urls
+
+    # 3️⃣ الدالة التي تجلب بيانات المخزون للمخزن المحدد
+    def inventory_report_view(self, request, warehouse_id):
+        warehouse = get_object_or_404(Warehouse, pk=warehouse_id)
+        # جلب الأصناف المربوطة بهذا المخزن مع بيانات المنتج
+        inventory_items = InventoryItem.objects.filter(warehouse=warehouse).select_related('product', 'product__category')
+        
+        context = {
+            'warehouse': warehouse,
+            'inventory_items': inventory_items,
+            'title': f"تقرير أرصدة مخزن: {warehouse.name}",
+        }
+        return render(request, 'admin/logistics/inventory_report.html', context)
 
 @admin.register(InventoryItem)
 class InventoryItemAdmin(admin.ModelAdmin):
@@ -70,11 +101,8 @@ class StockTransferAdmin(admin.ModelAdmin):
     search_fields = ('transfer_no', 'notes')
     inlines = [TransferItemInline]
 
-    # تصحيح دالة الحفظ التلقائي لكود التحويل
     def save_model(self, request, obj, form, change):
         if not obj.transfer_no:
-            # توليد رقم إذن تلقائي بناءً على التاريخ والوقت
             obj.transfer_no = f"TRF-{datetime.datetime.now().strftime('%y%m%d%H%M')}"
-        # تم تصحيح super().save إلى super().save_model لمنع الـ AttributeError
         super().save_model(request, obj, form, change)
 
