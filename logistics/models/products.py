@@ -2,12 +2,13 @@ from django.db import models
 
 class Category(models.Model):
     name = models.CharField(max_length=100, verbose_name="اسم القسم")
-    
+
     class Meta:
         verbose_name = "قسم"
         verbose_name_plural = "الأقسام"
-        
-    def __str__(self): return self.name
+
+    def __str__(self):
+        return self.name
 
 class Product(models.Model):
     # --- التعريف الأساسي ---
@@ -35,47 +36,44 @@ class Product(models.Model):
     size = models.CharField(max_length=20, blank=True, null=True, verbose_name="المقاس (مثلاً L, XL أو 42)")
     color = models.CharField(max_length=30, blank=True, null=True, verbose_name="اللون")
 
-    # --- التسعير (يتم إدخاله للوحدة الكبرى "الكرتونة" أو حسب سياسة الشركة) ---
-    # ملاحظة: سنعتبر هنا أن السعر المدخل هو للوحدة الكبرى (الكرتونة) لسهولة التعامل مع الموردين
+    # --- التسعير ---
     base_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="سعر تكلفة الكرتونة")
     selling_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="سعر بيع الكرتونة (جمهور)")
-    
+
     is_active = models.BooleanField(default=True, verbose_name="متاح للبيع")
     created_at = models.DateTimeField(auto_now_add=True)
 
-    # --- الدوال الذكية لحساب أسعار الوحدات الصغرى ---
-    
+    # --- الدوال الذكية ---
     @property
     def price_per_piece(self):
-        """حساب سعر بيع القطعة الواحدة"""
         if self.conversion_factor_main > 0:
             return round(self.selling_price / self.conversion_factor_main, 2)
         return self.selling_price
 
     @property
     def cost_per_piece(self):
-        """حساب سعر تكلفة القطعة الواحدة"""
         if self.conversion_factor_main > 0:
             return round(self.base_price / self.conversion_factor_main, 2)
         return self.base_price
 
     @property
     def price_per_sub_unit(self):
-        """حساب سعر الوحدة المتوسطة (مثلاً الدستة)"""
         if self.conversion_factor_sub > 0:
             return round(self.price_per_piece * self.conversion_factor_sub, 2)
         return 0
 
     @property
     def volume_m3(self):
-        """حساب حجم الكرتونة بالمتر المكعب لتوزيع حمولة السيارات"""
         return (self.length * self.width * self.height) / 1000000
 
     class Meta:
         verbose_name = "منتج"
         verbose_name_plural = "المنتجات"
 
+    # --- التعديل الجوهري هنا ---
     def __str__(self):
         variant_info = f" - {self.size}" if self.size else ""
-        return f"{self.name}{variant_info} ({self.sku})"
+        # إضافة الباركود للنص الظاهر ليتمكن السكربت من العثور عليه
+        barcode_info = f" | {self.barcode}" if self.barcode else ""
+        return f"{self.name}{variant_info}{barcode_info} ({self.sku})"
 
