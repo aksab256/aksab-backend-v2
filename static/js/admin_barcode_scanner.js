@@ -1,36 +1,34 @@
 document.addEventListener('DOMContentLoaded', function() {
-    function startScanning(inputField, readerId) {
+    let html5QrCode = null;
+
+    async function startScanning(inputField, readerId) {
         const readerDiv = document.getElementById(readerId);
+        
+        // لو الكاميرا مفتوحة في مكان تاني، اقفلها الأول
+        if (html5QrCode && html5QrCode.isScanning) {
+            await html5QrCode.stop();
+        }
+
         if (readerDiv.style.display === 'none') {
-            readerDiv.style.display = 'block';
+            // إخفاء أي كاميرا تانية مفتوحة في الصفحة
+            document.querySelectorAll('[id^="reader-"]').forEach(el => el.style.display = 'none');
             
-            // إضافة إعدادات دعم كل أنواع الباركود
-            const html5QrCode = new Html5Qrcode(readerId, { 
+            readerDiv.style.display = 'block';
+            html5QrCode = new Html5Qrcode(readerId, { 
                 formatsToSupport: [ 
                     Html5QrcodeSupportedFormats.EAN_13, 
-                    Html5QrcodeSupportedFormats.EAN_8, 
                     Html5QrcodeSupportedFormats.CODE_128, 
-                    Html5QrcodeSupportedFormats.UPC_A, 
-                    Html5QrcodeSupportedFormats.QR_CODE 
+                    Html5QrcodeSupportedFormats.UPC_A 
                 ] 
             });
 
             html5QrCode.start(
                 { facingMode: "environment" }, 
-                { 
-                    fps: 20, // سرعة أعلى للقط أسرع
-                    qrbox: { width: 280, height: 160 }, // تكبير مربع التركيز شوية
-                    aspectRatio: 1.777778 // نسبة عرض الشاشة لتحسين الفوكس
-                },
+                { fps: 20, qrbox: { width: 250, height: 150 } },
                 (decodedText) => {
-                    let found = false;
-                    
-                    // لو الحقل عبارة عن Input (خانة نصية) مش Select
-                    if (inputField.tagName === 'INPUT') {
-                        inputField.value = decodedText;
-                        found = true;
-                    } else {
-                        // لو الحقل منسدلة (Select)
+                    // التعامل مع حقول الجداول (Inlines) أو الحقول العادية
+                    if (inputField.tagName === 'SELECT') {
+                        let found = false;
                         for (let i = 0; i < inputField.options.length; i++) {
                             if (inputField.options[i].text.includes(decodedText)) {
                                 inputField.selectedIndex = i;
@@ -38,47 +36,44 @@ document.addEventListener('DOMContentLoaded', function() {
                                 break;
                             }
                         }
-                    }
-
-                    if (!found) {
-                        alert("الباركود [" + decodedText + "] غير مسجل!");
+                        if (!found) alert("الباركود " + decodedText + " غير مسجل!");
+                    } else {
+                        inputField.value = decodedText;
                     }
 
                     inputField.dispatchEvent(new Event('change', { bubbles: true }));
-
-                    // قفل الكاميرا بعد اللقط بنجاح
+                    
                     html5QrCode.stop().then(() => {
                         readerDiv.style.display = 'none';
-                    }).catch(err => console.error("Error stopping scan:", err));
+                    });
                 }
             ).catch(err => {
-                console.error("Camera Error:", err);
-                alert("تعذر فتح الكاميرا، تأكد من إعطاء التصريح.");
+                console.error(err);
                 readerDiv.style.display = 'none';
             });
         } else {
-            // لو الزرار اتداس والكاميرا مفتوحة، اقفلها
             readerDiv.style.display = 'none';
+            if (html5QrCode) html5QrCode.stop();
         }
     }
 
     function setupScanner(field) {
-        if (field.dataset.hasScanner || field.parentElement.querySelector('.scan-btn')) return;
+        if (field.dataset.hasScanner) return;
         field.dataset.hasScanner = "true";
 
+        const container = field.parentNode;
         const scanBtn = document.createElement('button');
         scanBtn.innerHTML = '📷 مسح';
         scanBtn.type = 'button';
-        scanBtn.className = 'scan-btn';
-        scanBtn.style.cssText = "margin: 0 5px; padding: 6px 12px; background: #417690; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;";
+        scanBtn.style.cssText = "margin: 2px; padding: 4px 8px; background: #417690; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;";
 
         const readerDiv = document.createElement('div');
         const rId = 'reader-' + Math.random().toString(36).substr(2, 9);
         readerDiv.id = rId;
-        readerDiv.style.cssText = "width: 100%; max-width: 350px; margin: 15px auto; display: none; border: 3px solid #417690; border-radius: 8px; overflow: hidden;";
+        readerDiv.style.cssText = "width: 100%; max-width: 300px; display: none; border: 2px solid #417690; margin-top: 5px; position: relative; z-index: 999;";
 
-        field.parentNode.insertBefore(scanBtn, field.nextSibling);
-        field.parentNode.appendChild(readerDiv);
+        container.appendChild(scanBtn);
+        container.appendChild(readerDiv);
 
         scanBtn.onclick = (e) => {
             e.preventDefault();
@@ -86,12 +81,12 @@ document.addEventListener('DOMContentLoaded', function() {
         };
     }
 
+    // مراقبة الصفحة لإضافة الزرار حتى للأسطر الجديدة في الفاتورة
     const selector = 'select[id*="product"], input[id*="barcode"]';
-    document.querySelectorAll(selector).forEach(setupScanner);
-
-    const observer = new MutationObserver(() => {
+    const scanObserver = new MutationObserver(() => {
         document.querySelectorAll(selector).forEach(setupScanner);
     });
-    observer.observe(document.body, { childList: true, subtree: true });
+    scanObserver.observe(document.body, { childList: true, subtree: true });
+    document.querySelectorAll(selector).forEach(setupScanner);
 });
 
