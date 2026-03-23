@@ -21,8 +21,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 6. نسخ مشروعك بالكامل لداخل الحاوية
 COPY . /app/
 
-# 7. السطر السحري: 
-# تنفيذ التهجير (migrate) أولاً، ثم تشغيل السيرفر (gunicorn)
-# علامة && تعني: لا تشغل السيرفر إلا لو التهجير تم بنجاح
-CMD python manage.py migrate && gunicorn --bind 0.0.0.0:8000 core.wsgi:application
+# 7. السطر السحري المطور:
+# - تنفيذ التهجير (migrate) للجداول الجديدة في Neon
+# - إنشاء حساب Superuser أوتوماتيكياً (username: admin, password: password123)
+# - تشغيل السيرفر (gunicorn) في النهاية
+CMD python manage.py migrate --noinput && \
+    echo "from django.contrib.auth import get_user_model; User = get_user_model(); \
+    if not User.objects.filter(username='admin').exists(): \
+    User.objects.create_superuser('admin', 'admin@example.com', 'password123')" | python manage.py shell && \
+    gunicorn --bind 0.0.0.0:8000 core.wsgi:application
 
