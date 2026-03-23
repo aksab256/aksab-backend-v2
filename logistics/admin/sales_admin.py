@@ -1,39 +1,32 @@
 from django.contrib import admin
-from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import User
 from ..models.sales_rep import SalesRepresentative
 from ..models.sales_manager import SalesManager
 
-# إظهار بيانات المندوب داخل صفحة المستخدم
-class SalesRepInline(admin.StackedInline):
+# إعداد ظهور المندوب كـ Inline جوه صفحة المستخدم (User)
+class SalesRepresentativeInline(admin.StackedInline):
     model = SalesRepresentative
     can_delete = False
-    verbose_name_plural = 'بيانات المندوب (العهدة والمنطقة)'
-    # الحقول التي تظهر للمندوب
-    fields = ('employee_code', 'phone', 'region', 'is_active')
+    verbose_name_plural = 'بيانات المندوب'
+    # عرض الحقول المتاحة فقط في الموديل الحالي
+    fields = ('warehouse', 'target_amount') 
 
-# إظهار بيانات المدير داخل صفحة المستخدم
-class SalesManagerInline(admin.StackedInline):
-    model = SalesManager
-    can_delete = False
-    verbose_name_plural = 'صلاحيات الإدارة الميدانية'
-
-class CustomUserAdmin(BaseUserAdmin):
-    # إضافة Inlines لربط المندوب والمدير بالمستخدم
-    inlines = (SalesRepInline, SalesManagerInline)
+class CustomUserAdmin(UserAdmin):
+    inlines = (SalesRepresentativeInline,)
+    list_display = ('username', 'email', 'first_name', 'last_name', 'is_staff', 'get_region')
     
-    # تحسين العرض في القائمة الرئيسية للمستخدمين
-    list_display = ('username', 'get_full_name', 'get_user_type', 'is_active', 'is_staff')
-    list_filter = ('is_active', 'is_staff', 'groups')
+    def get_region(self, instance):
+        # بنحاول نجيب المنطقة لو المندوب مربوط، وإلا نرجع فاضي
+        try:
+            return instance.salesrepresentative.warehouse.name
+        except:
+            return "-"
+    get_region.short_description = 'المخزن/الفرع'
 
-    # دالة ذكية لمعرفة نوع المستخدم (مندوب أم مدير) في القائمة
-    def get_user_type(self, obj):
-        if hasattr(obj, 'sales_rep'):
-            return "مندوب مبيعات"
-        if hasattr(obj, 'sales_manager'):
-            return "مدير مبيعات"
-        return "مسؤول نظام"
-    get_user_type.short_description = 'نوع الحساب'
-
-# سيتم التسجيل لاحقاً في __init__.py كما ذكرت
+# تسجيل الأدمن للمناديب بشكل مستقل برضه لو حبيت
+@admin.register(SalesRepresentative)
+class SalesRepresentativeAdmin(admin.ModelAdmin):
+    list_display = ('user', 'warehouse', 'target_amount')
+    search_fields = ('user__username', 'warehouse__name')
 
