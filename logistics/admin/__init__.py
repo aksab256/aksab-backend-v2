@@ -29,4 +29,6 @@ from .transactions_admin import CollectionAdmin
 
 # استيراد أدمن المشتريات (الموردين والفواتير)
 from .purchases_admin import SupplierAdmin, PurchaseInvoiceAdmin
+# استيراد أدمن سدادات الموردين
+from .supplier_payment_admin import SupplierPaymentAdmin
 
