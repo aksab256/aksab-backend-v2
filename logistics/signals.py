@@ -3,13 +3,16 @@ from django.dispatch import receiver
 from .models.InvoiceItem import InvoiceItem
 from .models.mainInventory import InventoryItem
 
+# ⛔ تم إيقاف هذه الدالة لأن الخصم أصبح يتم من داخل InvoiceItem.save()
+# لمنع التكرار والخصم المزدوج (Double Deduction)
+"""
 @receiver(post_save, sender=InvoiceItem)
 def update_stock_after_sale(sender, instance, created, **kwargs):
     if created:
         salesman = instance.invoice.salesman
         product = instance.product
         qty_sold = instance.quantity
-
+        
         stock_record = InventoryItem.objects.filter(
             product=product,
             warehouse__assigned_rep__user=salesman
@@ -27,4 +30,5 @@ def update_stock_after_sale(sender, instance, created, **kwargs):
             if main_stock:
                 main_stock.stock_quantity -= qty_sold
                 main_stock.save()
+"""
 
