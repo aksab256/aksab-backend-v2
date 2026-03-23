@@ -32,3 +32,6 @@ from .purchases_admin import SupplierAdmin, PurchaseInvoiceAdmin
 # استيراد أدمن سدادات الموردين
 from .supplier_payment_admin import SupplierPaymentAdmin
 
+# أضف هذا السطر في نهاية ملف logistics/admin/__init__.py
+from .sales_return_admin import SalesReturnAdmin
+

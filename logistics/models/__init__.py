@@ -14,3 +14,4 @@ from .payments import Collection
 # أضف هذا السطر في نهاية ملف __init__.py
 from .purchases import Supplier, PurchaseInvoice, PurchaseItem
 
+from .SalesReturn import SalesReturn, SalesReturnItem
