@@ -13,8 +13,11 @@ from .supplier_payment_admin import SupplierPaymentAdmin
 from .sales_return_admin import SalesReturnAdmin
 from .transactions_admin import CollectionAdmin
 
-# 🆕 استيراد ملف الأدمن الجديد الخاص بالخزينة والعهدة
+# 🆕 استيراد ملف الأدمن الخاص بالخزينة والعهدة
 from .treasury_admin import RepresentativeVaultAdmin, CollectionActionAdmin, CompanyTreasuryAdmin
+
+# 🆕 استيراد ملف الأدمن الخاص بالمصاريف
+from .expenses_admin import ExpenseCategoryAdmin, ExpenseAdmin
 
 # إعادة تسجيل مستخدمي النظام بالصلاحيات الجديدة
 try:
@@ -25,5 +28,5 @@ except admin.sites.NotRegistered:
 admin.site.register(User, CustomUserAdmin)
 
 # ملاحظة: تم حذف التسجيل اليدوي لـ SalesRepresentative و SalesManager
-# لأنهما مسجلان بالفعل بـ @admin.register داخل ملف sales_admin.py
+# لأنهما مسجلان بالفعل بـ @admin.register داخل ملفات الـ admin الخاصة بهما
 

@@ -11,6 +11,9 @@ from .payments import Collection
 from .purchases import Supplier, PurchaseInvoice, PurchaseItem
 from .SalesReturn import SalesReturn, SalesReturnItem
 
-# 🆕 الموديلات الجديدة الخاصة بالخزينة والعهدة النقدية
+# 🆕 الموديلات الخاصة بالخزينة والعهدة النقدية
 from .treasury import RepresentativeVault, CollectionAction, CompanyTreasury
+
+# 🆕 الموديلات الخاصة بالمصاريف (تمت الإضافة هنا)
+from .expenses import ExpenseCategory, Expense
 
