@@ -16,14 +16,27 @@ class InvoiceItemInline(admin.TabularInline):
 @admin.register(Invoice)
 class InvoiceAdmin(admin.ModelAdmin):
     search_fields = ['invoice_no', 'customer__name']
-    # أضفنا print_invoice للقائمة
     list_display = ['invoice_no', 'customer', 'final_total', 'payment_method', 'date_created', 'print_invoice']
     list_filter = ['warehouse', 'payment_method', 'date_created', 'salesman']
+    
+    # تأكد إن الحقول المحسوبة للقراءة فقط عشان متبوظش الحسبة اليدوية
     readonly_fields = ['invoice_no', 'date_created', 'total_before_discount', 'final_total', 'remaining_amount']
     
+    fieldsets = (
+        ('بيانات الفاتورة الأساسية', {
+            'fields': (('invoice_no', 'date_created'), ('customer', 'warehouse'), ('salesman', 'collector'))
+        }),
+        ('الحسابات المالية', {
+            'fields': (
+                ('total_before_discount', 'discount_amount'),
+                ('final_total', 'payment_method'),
+                ('paid_amount', 'remaining_amount')
+            )
+        }),
+    )
+
     inlines = [InvoiceItemInline]
 
-    # 1️⃣ زرار الطباعة في الجدول
     def print_invoice(self, obj):
         return format_html(
             '<a class="button" href="print/{}/" target="_blank" style="background-color: #27ae60; color: white;">طباعة 🖨️</a>',
@@ -31,7 +44,6 @@ class InvoiceAdmin(admin.ModelAdmin):
         )
     print_invoice.short_description = "الطباعة"
 
-    # 2️⃣ تسجيل رابط الطباعة
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
@@ -39,12 +51,9 @@ class InvoiceAdmin(admin.ModelAdmin):
         ]
         return custom_urls + urls
 
-    # 3️⃣ منطق تجميع بيانات الفاتورة وأصنافها
     def invoice_print_view(self, request, invoice_id):
         invoice = get_object_or_404(Invoice, pk=invoice_id)
-        # جلب الأصناف المرتبطة بالفاتورة
-        items = invoice.items.all() 
-        
+        items = invoice.items.all()
         context = {
             'invoice': invoice,
             'items': items,
@@ -52,14 +61,12 @@ class InvoiceAdmin(admin.ModelAdmin):
         }
         return render(request, 'admin/logistics/invoice_print.html', context)
 
+    # ⚠️ التعديل هنا: حذفنا التكرار اللي كان بيسبب خصم مرتين
     def save_related(self, request, form, formsets, change):
         try:
             with transaction.atomic():
                 super().save_related(request, form, formsets, change)
-                instance = form.instance
-                instance.update_totals()
+                # مفيش داعي ننادي update_totals هنا لأن InvoiceItem.save بيقوم بالواجب
         except Exception as e:
-            messages.error(request, f"⚠️ خطأ في الحفظ: {str(e)}")
-            if not change and instance.pk:
-                instance.delete()
+            messages.error(request, f"⚠️ خطأ: {str(e)}")
 
