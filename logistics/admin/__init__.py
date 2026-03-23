@@ -4,7 +4,7 @@ from .sales_admin import CustomUserAdmin
 from ..models.sales_rep import SalesRepresentative
 from ..models.sales_manager import SalesManager
 
-# استيراد ملفات الأدمن (الاستيراد هنا يشغل الـ @admin.register تلقائياً)
+# استيراد ملفات الأدمن لتفعيل الـ @admin.register
 from .customer_admin import CustomerAdmin
 from .inventory_admin import WarehouseAdmin, InventoryItemAdmin, ProductAdmin, CategoryAdmin, StockTransferAdmin
 from .invoice_admin import InvoiceAdmin
@@ -21,10 +21,6 @@ except admin.sites.NotRegistered:
 
 admin.site.register(User, CustomUserAdmin)
 
-# تسجيل الموديلات البسيطة التي لم ننشئ لها ملفات مستقلة بعد
-try:
-    admin.site.register(SalesRepresentative)
-    admin.site.register(SalesManager)
-except admin.sites.AlreadyRegistered:
-    pass
+# ملاحظة: تم حذف التسجيل اليدوي لـ SalesRepresentative و SalesManager 
+# لأنهما مسجلان بالفعل بـ @admin.register داخل ملف sales_admin.py
 

@@ -2,16 +2,36 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import User
 from ..models.sales_rep import SalesRepresentative
+from ..models.sales_manager import SalesManager
 
-# لو في Inline خليه يعرض الـ user بس لحد ما نتأكد من الحقول التانية
+# إظهار بيانات المندوب كـ Inline داخل صفحة المستخدم (User)
 class SalesRepresentativeInline(admin.StackedInline):
     model = SalesRepresentative
     can_delete = False
-    fields = ('user',) # شيلنا warehouse و target_amount مؤقتاً
+    verbose_name_plural = 'بيانات المندوب الفنية'
+    fields = ('phone', 'address', 'supervisor', 'insurance_points')
+    readonly_fields = ('rep_code',)
 
-# تعديل كلاس الـ Admin الأساسي للمناديب
+# الكلاس الذي يحتاجه ملف __init__
+class CustomUserAdmin(UserAdmin):
+    inlines = (SalesRepresentativeInline,)
+    list_display = ('username', 'email', 'first_name', 'last_name', 'is_staff', 'get_rep_code')
+
+    def get_rep_code(self, instance):
+        try:
+            return instance.sales_rep_profile.rep_code
+        except:
+            return "-"
+    get_rep_code.short_description = 'كود المندوب'
+
 @admin.register(SalesRepresentative)
 class SalesRepresentativeAdmin(admin.ModelAdmin):
-    # هنعرض الـ user بس عشان نتخطى خطأ الـ E108
-    list_display = ('user',) 
+    list_display = ('user', 'rep_code', 'phone', 'supervisor', 'insurance_points')
+    search_fields = ('user__username', 'rep_code', 'phone')
+    readonly_fields = ('rep_code',)
+
+@admin.register(SalesManager)
+class SalesManagerAdmin(admin.ModelAdmin):
+    list_display = ('user', 'role', 'phone')
+    list_filter = ('role',)
 
