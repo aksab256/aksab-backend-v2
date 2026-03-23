@@ -1,67 +1,65 @@
 from django.contrib import admin, messages
+from django.urls import path
+from django.shortcuts import render, get_object_or_404
+from django.utils.html import format_html
 from django.db import transaction
 from ..models.Invoice import Invoice
 from ..models.InvoiceItem import InvoiceItem
-# تأكد من استيراد الموديلات الصحيحة للتحصيل لو موجودة في ملف منفصل
-# from ..models.payments import Collection 
 
 class InvoiceItemInline(admin.TabularInline):
     model = InvoiceItem
-    extra = 1 # خليناها 1 عشان يفتح سطر جديد جاهز للإضافة
-    
-    # 🆕 التعديل الجوهري: إضافة selected_unit في الترتيب الصحيح
+    extra = 1
     fields = ['product', 'selected_unit', 'unit_price', 'quantity', 'discount_per_unit', 'line_total']
-    
-    # جعل الإجمالي للقراءة فقط عشان السيستم يحسبه
     readonly_fields = ['line_total']
-    
-    # تحسين اختيار المنتج (Dropdown مع بحث)
-    autocomplete_fields = ['product'] 
+    autocomplete_fields = ['product']
 
+@admin.register(Invoice)
 class InvoiceAdmin(admin.ModelAdmin):
     search_fields = ['invoice_no', 'customer__name']
-    list_display = [
-        'invoice_no', 'customer', 'warehouse', 'salesman', 
-        'final_total', 'payment_method', 'date_created'
-    ]
+    # أضفنا print_invoice للقائمة
+    list_display = ['invoice_no', 'customer', 'final_total', 'payment_method', 'date_created', 'print_invoice']
     list_filter = ['warehouse', 'payment_method', 'date_created', 'salesman']
-    
-    fieldsets = (
-        ('بيانات الفاتورة الأساسية', {
-            'fields': (('invoice_no', 'date_created'), ('customer', 'warehouse'), ('salesman', 'collector'))
-        }),
-        ('الحسابات المالية (تحديث تلقائي)', {
-            'fields': (
-                ('total_before_discount', 'discount_amount'),
-                ('final_total', 'payment_method'),
-                ('paid_amount', 'remaining_amount')
-            )
-        }),
-    )
-
-    # الحقول اللي بتتحسب أوتوماتيك يفضل تكون Readonly في الأدمن الرئيسي
     readonly_fields = ['invoice_no', 'date_created', 'total_before_discount', 'final_total', 'remaining_amount']
     
-    inlines = [InvoiceItemInline] # يمكنك إضافة CollectionInline هنا أيضاً
+    inlines = [InvoiceItemInline]
+
+    # 1️⃣ زرار الطباعة في الجدول
+    def print_invoice(self, obj):
+        return format_html(
+            '<a class="button" href="print/{}/" target="_blank" style="background-color: #27ae60; color: white;">طباعة 🖨️</a>',
+            obj.pk
+        )
+    print_invoice.short_description = "الطباعة"
+
+    # 2️⃣ تسجيل رابط الطباعة
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('print/<uuid:invoice_id>/', self.admin_site.admin_view(self.invoice_print_view)),
+        ]
+        return custom_urls + urls
+
+    # 3️⃣ منطق تجميع بيانات الفاتورة وأصنافها
+    def invoice_print_view(self, request, invoice_id):
+        invoice = get_object_or_404(Invoice, pk=invoice_id)
+        # جلب الأصناف المرتبطة بالفاتورة
+        items = invoice.items.all() 
+        
+        context = {
+            'invoice': invoice,
+            'items': items,
+            'title': f"فاتورة رقم {invoice.invoice_no}",
+        }
+        return render(request, 'admin/logistics/invoice_print.html', context)
 
     def save_related(self, request, form, formsets, change):
-        """تأمين عملية الخصم من المخزن وتحديث الأرصدة"""
         try:
             with transaction.atomic():
-                # 1. حفظ الأصناف (ده بيشغل الـ save بتاع InvoiceItem اللي بيخصم من المخزن)
                 super().save_related(request, form, formsets, change)
-                
-                # 2. إعادة حساب الإجماليات النهائية للفاتورة
                 instance = form.instance
                 instance.update_totals()
-                
         except Exception as e:
-            # عرض أي خطأ (زي عجز المخزن) كرسالة حمراء في الأدمن
             messages.error(request, f"⚠️ خطأ في الحفظ: {str(e)}")
-            # لو الفاتورة جديدة وفشلت، لا نريد ترك "رأس فاتورة" فارغ بدون أصناف
             if not change and instance.pk:
                 instance.delete()
-
-# تسجيل الموديل
-admin.site.register(Invoice, InvoiceAdmin)
 
