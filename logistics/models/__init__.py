@@ -4,14 +4,13 @@ from .work_day import WorkDayLog
 from .mainInventory import Warehouse, InventoryItem
 from .products import Product
 from .transactions import StockTransfer
-# 🆕 أضف السطر ده هنا:
-from .customers import Customer 
+from .customers import Customer
 from .Invoice import Invoice
 from .InvoiceItem import InvoiceItem
-# أضف هذا السطر مع بقية الـ imports
 from .payments import Collection
-
-# أضف هذا السطر في نهاية ملف __init__.py
 from .purchases import Supplier, PurchaseInvoice, PurchaseItem
-
 from .SalesReturn import SalesReturn, SalesReturnItem
+
+# 🆕 الموديلات الجديدة الخاصة بالخزينة والعهدة النقدية
+from .treasury import RepresentativeVault, CollectionAction, CompanyTreasury
+

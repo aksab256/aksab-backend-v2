@@ -2,6 +2,8 @@ from django.db import models, transaction
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from .Invoice import Invoice
+# استيراد موديلات الخزينة الجديدة للربط
+from .treasury import RepresentativeVault, CollectionAction
 
 class Collection(models.Model):
     customer = models.ForeignKey('Customer', on_delete=models.PROTECT, related_name='payments', verbose_name="العميل")
@@ -26,19 +28,37 @@ class Collection(models.Model):
             is_new = self.pk is None
             self.full_clean()
             super().save(*args, **kwargs)
-            
+
             if is_new:
                 # 1. تحديث الفاتورة (لو موجودة)
                 if self.invoice:
                     self.invoice.paid_amount += self.amount
                     self.invoice.remaining_amount -= self.amount
                     self.invoice.save()
-                
-                # 2. تحديث حساب العميل (تلقائياً)
+
+                # 2. تحديث حساب العميل
                 customer = self.customer
                 customer.current_balance -= self.amount
                 customer.total_paid += self.amount
                 customer.save()
+
+                # 3. 🆕 الربط مع الخزينة (إضافة المبلغ لعهدة المندوب)
+                # الحصول على محفظة المندوب أو إنشاؤها
+                vault, _ = RepresentativeVault.objects.get_or_create(representative=self.collector)
+                
+                # تسجيل حركة تحصيل مديونية "معلقة" في عهدة المندوب
+                CollectionAction.objects.create(
+                    vault=vault,
+                    amount=self.amount,
+                    action_type='DEBT_COLLECTION',
+                    status='HOLD',
+                    invoice=self.invoice,
+                    collector=self.collector
+                )
+                
+                # تحديث رصيد عهدة المندوب (المبلغ اللي في إيده زاد)
+                vault.current_cash_balance += self.amount
+                vault.save()
 
     class Meta:
         verbose_name = "عملية تحصيل"
